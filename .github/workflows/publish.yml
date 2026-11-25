@@ -1,0 +1,75 @@
+# Publishes a release when a version tag (v1.2.3) is pushed: VS Code Marketplace,
+# Open VSX and a GitHub release with the .vsix attached. Started by hand
+# ("Run workflow"), it only tests and packages, and publishes nothing.
+#
+# One-time setup:
+# - VS Code Marketplace: a Trusted Publishing policy for PantoYT/cool-formatter,
+#   workflow publish.yml (marketplace.visualstudio.com/manage, publisher panto,
+#   "Trusted Publishing"). No token is stored anywhere.
+# - Open VSX: the repository secret OVSX_PAT with an open-vsx.org access token.
+#   Without it, ovsx tries Open VSX trusted publishing instead, which works once
+#   a trusted publisher is registered for the panto namespace.
+
+name: publish
+
+on:
+  push:
+    tags: ["v*.*.*"]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  package:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-node@v7
+        with:
+          node-version: 24
+          cache: npm
+      - run: npm ci
+      - run: npm test
+      - run: npm run typecheck
+      - name: Tag matches package.json
+        if: github.ref_type == 'tag'
+        run: |
+          version=$(node -p "require('./package.json').version")
+          if [ "v$version" != "$GITHUB_REF_NAME" ]; then
+            echo "::error::tag $GITHUB_REF_NAME, but package.json says $version"
+            exit 1
+          fi
+      - run: npx vsce package --no-dependencies --out cool-formatter.vsix
+      - uses: actions/upload-artifact@v7
+        with:
+          name: vsix
+          path: cool-formatter.vsix
+
+  publish:
+    needs: package
+    if: github.ref_type == 'tag'
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write # the GitHub release
+      id-token: write # trusted publishing
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-node@v7
+        with:
+          node-version: 24
+          cache: npm
+      - run: npm ci
+      - uses: actions/download-artifact@v8
+        with:
+          name: vsix
+      - name: VS Code Marketplace
+        run: npx vsce publish --packagePath cool-formatter.vsix --oidc --skip-duplicate
+      - name: Open VSX
+        run: npx ovsx publish --packagePath cool-formatter.vsix --skip-duplicate
+        env:
+          OVSX_PAT: ${{ secrets.OVSX_PAT }}
+      - name: GitHub release
+        run: gh release create "$GITHUB_REF_NAME" cool-formatter.vsix --title "$GITHUB_REF_NAME" --generate-notes
+        env:
+          GH_TOKEN: ${{ github.token }}

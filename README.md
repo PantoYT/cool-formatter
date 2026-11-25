@@ -48,13 +48,12 @@ Bit operators, shifts and `instanceof` are always left as written.
 
 ## VS Code
 
-Until it is on the Marketplace, build and install the package:
-
-```sh
-npm install
-npm run package                                  # cool-formatter-<version>.vsix
-code --install-extension cool-formatter-0.2.0.vsix
-```
+Install it from the [VS Code Marketplace](https://marketplace.visualstudio.com/items?itemName=panto.cool-formatter)
+(search for Cool Formatter in the Extensions view, or
+`code --install-extension panto.cool-formatter`). VSCodium, Cursor and other
+editors that use Open VSX can install it from there, and every
+[GitHub release](https://github.com/PantoYT/cool-formatter/releases) has the
+`.vsix` attached.
 
 Then make it the formatter of the languages you want:
 
@@ -127,6 +126,19 @@ your settings are untouched. If Intelephense and the C/C++ extension are
 installed, they are loaded from your extensions folder to test the
 base-formatter chain. `VSCODE_BIN` and `VSCODE_EXTENSIONS` override where VS
 Code and the extensions are looked up.
+
+To release, set the version in `package.json`, commit, and push a tag with
+the same number:
+
+```sh
+git tag v0.3.1
+git push origin v0.3.1
+```
+
+`.github/workflows/publish.yml` then tests and packages it and publishes it
+to the VS Code Marketplace (trusted publishing, no stored token), Open VSX
+(the `OVSX_PAT` secret) and GitHub Releases. Started by hand from the Actions
+tab, it only builds the package.
 
 The icon started as a render and was finished by hand. `scripts/icon.js`
 traces three Möbius strips in 3D into a small z-buffer and quantizes them to a

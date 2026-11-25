@@ -12,21 +12,39 @@
 		"url": "https://github.com/PantoYT/cool-formatter"
 	},
 	"type": "module",
-	"categories": ["Formatters"],
-	"keywords": ["formatter", "operators", "spacing", "precedence", "php", "c", "cpp", "tree-sitter"],
+	"categories": [
+		"Formatters"
+	],
+	"keywords": [
+		"formatter",
+		"operators",
+		"spacing",
+		"precedence",
+		"php",
+		"c",
+		"cpp",
+		"tree-sitter"
+	],
 	"engines": {
 		"vscode": "^1.90.0",
 		"node": ">=22.18"
 	},
 	"main": "./dist/extension.cjs",
-	"activationEvents": ["onLanguage:php", "onLanguage:c", "onLanguage:cpp"],
+	"activationEvents": [
+		"onLanguage:php",
+		"onLanguage:c",
+		"onLanguage:cpp"
+	],
 	"contributes": {
 		"configuration": {
 			"title": "Cool Formatter",
 			"properties": {
 				"coolFormatter.preset": {
 					"type": "string",
-					"enum": ["panto", "classic"],
+					"enum": [
+						"panto",
+						"classic"
+					],
 					"enumDescriptions": [
 						"2*a + 2*b, (a+b)*(a-b), x>0 && y<10, for (i=0; i<n; i++)",
 						"a space around every operator, as Prettier and PSR-12 do"
@@ -36,7 +54,10 @@
 				},
 				"coolFormatter.baseFormatter": {
 					"type": "string",
-					"enum": ["auto", "none"],
+					"enum": [
+						"auto",
+						"none"
+					],
 					"enumDescriptions": [
 						"Run the language's other formatter first (Intelephense, C/C++, ...), then fix operator spacing",
 						"Only fix operator spacing"
@@ -69,6 +90,7 @@
 		"@types/vscode": "1.90.0",
 		"@vscode/vsce": "4.1.1",
 		"esbuild": "0.28.2",
+		"ovsx": "1.4.0",
 		"typescript": "7.0.2"
 	}
 }
