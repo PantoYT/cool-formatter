@@ -1,10 +1,11 @@
 // Runs test/vscode/suite.cjs inside a throwaway VS Code instance: its own
 // profile and extensions folder under .vscode-test/, so your settings and
-// Settings Sync are never touched. Intelephense, if installed, is loaded
-// read-only from your extensions folder to act as the PHP base formatter.
+// Settings Sync are never touched. Intelephense and the C/C++ extension, if
+// installed, are loaded read-only from your extensions folder to act as base
+// formatters.
 //
 // VSCODE_BIN overrides the VS Code executable, VSCODE_EXTENSIONS the folder
-// searched for Intelephense.
+// searched for the base formatters.
 
 import { execFileSync, spawnSync } from "node:child_process";
 import { existsSync, mkdirSync, readFileSync, readdirSync, rmSync, writeFileSync } from "node:fs";
@@ -39,17 +40,27 @@ writeFileSync(join(workspace, ".vscode", "settings.json"), JSON.stringify({
 	"editor.formatOnSave": true,
 	"intelephense.format.braces": "k&r",
 	"intelephense.telemetry.enabled": false,
+	// A layout matching the panto preset: braces attached, tabs, case at switch level.
+	"C_Cpp.clang_format_style": "{ BasedOnStyle: LLVM, UseTab: Always, IndentWidth: 4, TabWidth: 4, BreakBeforeBraces: Attach, ColumnLimit: 0, IndentCaseLabels: false, AllowShortIfStatementsOnASingleLine: Never, AllowShortLoopsOnASingleLine: false, AllowShortFunctionsOnASingleLine: None }",
 }, null, "\t"));
 
 const developmentPaths = [root];
 const extensions = process.env.VSCODE_EXTENSIONS ?? join(homedir(), ".vscode", "extensions");
-const intelephense = existsSync(extensions)
-	? readdirSync(extensions).filter(name => name.startsWith("bmewburn.vscode-intelephense-client-")).sort().pop()
-	: undefined;
-if (intelephense) developmentPaths.push(join(extensions, intelephense));
-else console.log("Intelephense not found: the PHP base-formatter cases will be skipped");
+const installed = existsSync(extensions) ? readdirSync(extensions) : [];
+const find = prefix => installed.filter(name => name.startsWith(prefix)).sort().pop();
+const intelephense = find("bmewburn.vscode-intelephense-client-");
+const cpptools = find("ms-vscode.cpptools-1");
+for (const [name, folder] of [["Intelephense", intelephense], ["C/C++", cpptools]]) {
+	if (folder) developmentPaths.push(join(extensions, folder));
+	else console.log(`${name} not found: its base-formatter cases will be skipped`);
+}
 
-const env = { ...process.env, COOL_FORMATTER_RESULTS: results, COOL_FORMATTER_INTELEPHENSE: intelephense ? "1" : "" };
+const env = {
+	...process.env,
+	COOL_FORMATTER_RESULTS: results,
+	COOL_FORMATTER_INTELEPHENSE: intelephense ? "1" : "",
+	COOL_FORMATTER_CPPTOOLS: cpptools ? "1" : "",
+};
 delete env.ELECTRON_RUN_AS_NODE;
 const code = findCode();
 console.log(`running ${code}`);

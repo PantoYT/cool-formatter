@@ -29,9 +29,10 @@ async function formatted(file, content) {
 	return doc.getText();
 }
 
-// Intelephense registers its formatter only once its language server is up.
-async function waitForIntelephense(file) {
-	const doc = await open(file, "<?php\nfunction f()\n{\nreturn 1;\n}\n");
+// Base formatters register only once their servers are up. The probe file has
+// no operators, so any edit at all means the base formatter answered.
+async function waitForBase(file, probe) {
+	const doc = await open(file, probe);
 	for (let i=0; i<120; i++) {
 		const edits = await vscode.commands.executeCommand("vscode.executeFormatDocumentProvider", doc.uri, { insertSpaces: false, tabSize: 4 });
 		if (edits && edits.length) return true;
@@ -45,9 +46,17 @@ exports.run = async function () {
 	try {
 		await vscode.extensions.getExtension("pantoyt.cool-formatter").activate();
 
-		check("C++ without a base formatter",
-			await formatted(path.join(ws, "a.cpp"), "int main() {\n\tfor (int i = 0; i < n; i++) x = a * b - c;\n}\n"),
-			"int main() {\n\tfor (int i=0; i<n; i++) x = a*b - c;\n}\n");
+		const cpp = "int main()\n{\n    for (int i = 0; i < n; i++) x = a * b - c;\n}\n";
+		if (process.env.COOL_FORMATTER_CPPTOOLS) {
+			check("C/C++ extension came up", await waitForBase(path.join(ws, "ready.cpp"), "int f()\n{\nreturn 1;\n}\n"), true);
+			check("C++: clang-format first, then the operators",
+				await formatted(path.join(ws, "a.cpp"), cpp),
+				"int main() {\n\tfor (int i=0; i<n; i++)\n\t\tx = a*b - c;\n}\n");
+		} else {
+			check("C++ without a base formatter",
+				await formatted(path.join(ws, "a.cpp"), cpp),
+				"int main()\n{\n    for (int i=0; i<n; i++) x = a*b - c;\n}\n");
+		}
 
 		check(".cool-formatter.json picks the classic preset",
 			await formatted(path.join(ws, "classic", "b.php"), "<?php\n$p = ($a+$b)*($a-$b);\n"),
@@ -61,7 +70,7 @@ exports.run = async function () {
 		check("format on save", doc.getText().includes("$x = $a*2 + 1;"), true);
 
 		if (process.env.COOL_FORMATTER_INTELEPHENSE) {
-			const ready = await waitForIntelephense(path.join(ws, "ready.php"));
+			const ready = await waitForBase(path.join(ws, "ready.php"), "<?php\nfunction f()\n{\nreturn 1;\n}\n");
 			check("Intelephense came up", ready, true);
 			const text = await formatted(path.join(ws, "d.php"),
 				"<?php\nfunction srednia(array $zmienne)\n{\n$suma = 0;\nforeach ($zmienne as $z) {\n$suma += $z;\n}\nreturn $suma / count($zmienne);\n}\n");

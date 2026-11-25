@@ -1,5 +1,7 @@
 # Cool Formatter™
 
+<img src="art/icon.png" width="96" alt="Three interlinked Möbius strips forming a triangle, in pixel art">
+
 Operator spacing that follows precedence, so code reads the way it binds.
 Spaces go around the operator that binds loosest and disappear where operands
 belong together:
@@ -121,9 +123,14 @@ npm run test:vscode    # extension tests in a throwaway VS Code instance
 ```
 
 `test:vscode` starts VS Code with its own profile under `.vscode-test/`, so
-your settings are untouched. If Intelephense is installed, it is loaded from
-your extensions folder to test the base-formatter chain. `VSCODE_BIN` and
-`VSCODE_EXTENSIONS` override where VS Code and the extensions are looked up.
+your settings are untouched. If Intelephense and the C/C++ extension are
+installed, they are loaded from your extensions folder to test the
+base-formatter chain. `VSCODE_BIN` and `VSCODE_EXTENSIONS` override where VS
+Code and the extensions are looked up.
+
+The icon is rendered, not drawn: `node scripts/icon.js` traces three Möbius
+strips in 3D into a 32x32 z-buffer and quantizes them to a fixed palette.
+`art/icon-64.png` is the same scene at 64x64.
 
 Parsing is done by [tree-sitter](https://tree-sitter.github.io/) grammars
 compiled to WebAssembly, so nothing native is installed. A new language needs
