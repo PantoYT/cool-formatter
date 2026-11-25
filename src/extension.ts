@@ -4,12 +4,46 @@
 import * as vscode from "vscode";
 import { loadStyle } from "./config.ts";
 import { format } from "./core.ts";
+import { jsLayout, type LayoutSettings, layoutSettingNames } from "./jslayout.ts";
 import { languages } from "./languages.ts";
 import { locateRuntime } from "./parser.ts";
 
+// Adapter -> file extension that tells the TypeScript engine the dialect.
+const jsDialect: Record<string, string> = { js: ".jsx", ts: ".ts", tsx: ".tsx" };
+
+// The same settings VS Code's built-in JS/TS formatter reads; unset ones keep
+// the defaults that extension contributes.
+function jsLayoutSettings(document: vscode.TextDocument, options: vscode.FormattingOptions): LayoutSettings {
+	const section = document.languageId.startsWith("typescript") ? "typescript.format" : "javascript.format";
+	const config = vscode.workspace.getConfiguration(section, document);
+	const settings: Record<string, unknown> = {
+		tabSize: options.tabSize,
+		indentSize: options.tabSize,
+		convertTabsToSpaces: options.insertSpaces,
+		newLineCharacter: document.eol === vscode.EndOfLine.CRLF ? "\r\n" : "\n",
+	};
+	for (const name of layoutSettingNames) {
+		const value = config.get(name);
+		if (value !== undefined) settings[name] = value;
+	}
+	return settings as LayoutSettings;
+}
+
 // VS Code language id -> adapter. Files associated with PHP (some setups map
 // *.html there) go through the PHP grammar, which reads the HTML around PHP.
-const adapterFor: Record<string, string> = { php: "php", c: "c", cpp: "cpp" };
+const adapterFor: Record<string, string> = {
+	php: "php",
+	c: "c",
+	cpp: "cpp",
+	javascript: "js",
+	javascriptreact: "js",
+	typescript: "ts",
+	typescriptreact: "tsx",
+	csharp: "cs",
+	java: "java",
+	python: "py",
+	rust: "rs",
+};
 
 // Documents whose base formatter is being asked right now. VS Code may hand
 // that request back to this extension; declining makes it try the next one.
@@ -50,7 +84,16 @@ const provider: vscode.DocumentFormattingEditProvider = {
 		const original = document.getText();
 		let text = original;
 
-		if (settings.get<string>("baseFormatter", "auto") === "auto") {
+		const base = settings.get<string>("baseFormatter", "auto");
+		if (base === "auto" && jsDialect[lang.id]) {
+			// JS/TS: VS Code's own formatting engine, so the result does not depend
+			// on which other formatter is installed (Prettier rewrites quotes).
+			try {
+				text = jsLayout(original, `file${jsDialect[lang.id]}`, jsLayoutSettings(document, options));
+			} catch (error) {
+				output.appendLine(`${document.uri.fsPath}: JS layout failed: ${(error as Error).message}`);
+			}
+		} else if (base === "auto" || base === "extension") {
 			inFlight.add(key);
 			try {
 				const edits = await vscode.commands.executeCommand<vscode.TextEdit[] | undefined>("vscode.executeFormatDocumentProvider", document.uri, options);

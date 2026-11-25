@@ -58,6 +58,18 @@ exports.run = async function () {
 				"int main()\n{\n    for (int i=0; i<n; i++) x = a*b - c;\n}\n");
 		}
 
+		// JS: VS Code's own formatter first (Prettier is disabled for JS in the
+		// workspace and must not run: it would turn 'a' into "a"), then the operators.
+		const js = await formatted(path.join(ws, "a.js"), "function f(a)\n{\n    for (let i = 0; i < n; i++) y = a * b - c\n    return 'a' + b\n}\n");
+		contains("JS: quotes left as written", js, "'a'");
+		contains("JS: built-in formatter added semicolons", js, "y = a*b - c;");
+		contains("JS: brace on the same line", js, "function f(a) {");
+		contains("JS: for header tight", js, "for (let i=0; i<n; i++)");
+
+		check("Java without a base formatter",
+			await formatted(path.join(ws, "A.java"), "class A { int f() { return (a + b) * 2; } }\n"),
+			"class A { int f() { return (a+b)*2; } }\n");
+
 		check(".cool-formatter.json picks the classic preset",
 			await formatted(path.join(ws, "classic", "b.php"), "<?php\n$p = ($a+$b)*($a-$b);\n"),
 			"<?php\n$p = ($a + $b) * ($a - $b);\n");

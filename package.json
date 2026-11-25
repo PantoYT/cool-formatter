@@ -2,7 +2,7 @@
 	"name": "cool-formatter",
 	"displayName": "Cool Formatter™",
 	"description": "Operator spacing that follows precedence, so code reads the way it binds.",
-	"version": "0.3.1",
+	"version": "0.4.0",
 	"icon": "art/icon.png",
 	"private": true,
 	"publisher": "panto",
@@ -23,6 +23,12 @@
 		"php",
 		"c",
 		"cpp",
+		"javascript",
+		"typescript",
+		"csharp",
+		"java",
+		"python",
+		"rust",
 		"tree-sitter"
 	],
 	"engines": {
@@ -33,7 +39,15 @@
 	"activationEvents": [
 		"onLanguage:php",
 		"onLanguage:c",
-		"onLanguage:cpp"
+		"onLanguage:cpp",
+		"onLanguage:javascript",
+		"onLanguage:javascriptreact",
+		"onLanguage:typescript",
+		"onLanguage:typescriptreact",
+		"onLanguage:csharp",
+		"onLanguage:java",
+		"onLanguage:python",
+		"onLanguage:rust"
 	],
 	"contributes": {
 		"configuration": {
@@ -56,10 +70,12 @@
 					"type": "string",
 					"enum": [
 						"auto",
+						"extension",
 						"none"
 					],
 					"enumDescriptions": [
-						"Run the language's other formatter first (Intelephense, C/C++, ...), then fix operator spacing",
+						"Lay the document out first: JavaScript and TypeScript with VS Code's own formatting engine (javascript.format.* settings), other languages with their formatter extension (Intelephense, C/C++, ...)",
+						"Always use the formatter extension VS Code offers for the language, Prettier included",
 						"Only fix operator spacing"
 					],
 					"default": "auto",
@@ -81,8 +97,15 @@
 	},
 	"dependencies": {
 		"tree-sitter-c": "0.24.1",
+		"tree-sitter-c-sharp": "0.24.0",
 		"tree-sitter-cpp": "0.23.4",
+		"tree-sitter-java": "0.23.5",
+		"tree-sitter-javascript": "0.25.0",
 		"tree-sitter-php": "0.24.2",
+		"tree-sitter-python": "0.25.0",
+		"tree-sitter-rust": "0.24.0",
+		"tree-sitter-typescript": "0.23.2",
+		"typescript5": "npm:typescript@5.9.3",
 		"web-tree-sitter": "0.27.2"
 	},
 	"devDependencies": {

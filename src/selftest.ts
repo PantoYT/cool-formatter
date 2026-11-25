@@ -2,6 +2,7 @@
 // expected text must already be stable (formatting it again changes nothing).
 
 import { format, tokenizesSame } from "./core.ts";
+import { jsLayout, type LayoutSettings } from "./jslayout.ts";
 import { languages } from "./languages.ts";
 import { presets } from "./style.ts";
 
@@ -11,7 +12,12 @@ interface Case {
 	input: string;
 	expected: string;
 	preset?: string;
+	// Run the JS/TS layout engine first, as the extension does.
+	layout?: { file: string; settings: LayoutSettings };
 }
+
+// The JS layout settings matching his quiz: tabs, semicolons, case at switch level.
+const pantoJs = { file: "file.jsx", settings: { tabSize: 4, indentSize: 4, convertTabsToSpaces: false, newLineCharacter: "\n", semicolons: "insert", indentSwitchCase: false } as LayoutSettings };
 
 const php = (body: string) => "<?php\n" + body + "\n";
 
@@ -40,6 +46,7 @@ function srednia(array $zmienne)
 	$obw = 2*$a + 2*$b;
 	return $obw;
 }
+
 function srednia(array $zmienne)
 {
 	$n = 0;
@@ -70,6 +77,23 @@ function srednia(array $zmienne)
 		input: php("$u = [\n\t'nr'    => 7,\n\t'klasa' => '2T',\n];"),
 		expected: php("$u = [\n\t'nr'    => 7,\n\t'klasa' => '2T',\n];"),
 	},
+	{
+		name: "quiz 15: multi-line array => lined up",
+		lang: "php",
+		input: php("$u = [\n\t'nr' => 7,\n\t'klasa'=>'2T',\n\t'imie'   =>   'Jan',\n\t'lista' => [\n\t\t'a' => 1,\n\t\t'bbb' => 2,\n\t],\n];"),
+		expected: php("$u = [\n\t'nr'    => 7,\n\t'klasa' => '2T',\n\t'imie'  => 'Jan',\n\t'lista' => [\n\t\t'a'   => 1,\n\t\t'bbb' => 2,\n\t],\n];"),
+	},
+	{
+		name: "only keys that start a line are lined up",
+		lang: "php",
+		input: php("$u = [\n\t'a' => 1, 'bb' => 2,\n\t'ccc'=>3,\n];"),
+		expected: php("$u = [\n\t'a'   => 1, 'bb' => 2,\n\t'ccc' => 3,\n];"),
+	},
+	{ name: "quiz 12: one blank line between functions", lang: "php", input: php("function a() {}\nfunction b() {}\n\n\n\nfunction c() {}"), expected: php("function a() {}\n\nfunction b() {}\n\nfunction c() {}") },
+	{ name: "a docblock between functions is left alone", lang: "php", input: php("class K {\n\tfunction m() {}\n\t/** doc */\n\tfunction n() {}\n}"), expected: php("class K {\n\tfunction m() {}\n\t/** doc */\n\tfunction n() {}\n}") },
+	{ name: "blank line keeps Windows line endings", lang: "php", input: "<?php\r\nfunction a() {}\r\nfunction b() {}\r\n", expected: "<?php\r\nfunction a() {}\r\n\r\nfunction b() {}\r\n" },
+	{ name: "Python functions get one blank line", lang: "py", input: "def a():\n    pass\ndef b():\n    pass\n", expected: "def a():\n    pass\n\ndef b():\n    pass\n" },
+	{ name: "a comment that swallows the CR keeps the file CRLF", lang: "py", input: "def a():\r\n    pass  # c\r\ndef b():\r\n    pass\r\n", expected: "def a():\r\n    pass  # c\r\n\r\ndef b():\r\n    pass\r\n" },
 	{ name: "subscripts and array items", lang: "php", input: php("$t[$i - 1] = [$a + 1, $b];"), expected: php("$t[$i-1] = [$a+1, $b];") },
 	{ name: "null coalescing", lang: "php", input: php("$x = $a??$b;"), expected: php("$x = $a ?? $b;") },
 	{ name: "short ternary stays whole", lang: "php", input: php("$x = $a ?: $b;"), expected: php("$x = $a ?: $b;") },
@@ -96,6 +120,36 @@ function srednia(array $zmienne)
 	{ name: "C++ modulo chain", lang: "cpp", input: "long long s = 1LL * a * b % MOD;\n", expected: "long long s = 1LL*a*b%MOD;\n" },
 	{ name: "C++ logic", lang: "cpp", input: "bool b = x==1&&y!=2;\n", expected: "bool b = x == 1 && y != 2;\n" },
 	{ name: "C++ a / *p never becomes a comment", lang: "cpp", input: "void f() { a = b / *p; }\n", expected: "void f() { a = b / *p; }\n" },
+
+	{ name: "JS for header", lang: "js", input: "for (let i = 0; i < n; i++) {}\n", expected: "for (let i=0; i<n; i++) {}\n" },
+	{ name: "JS arithmetic and assignment", lang: "js", input: "x = a * b - c;\ny += -a;\n", expected: "x = a*b - c;\ny+=-a;\n" },
+	{ name: "JS condition and arguments", lang: "js", input: "if (a + b > 10 && ok) f(n + 1, t[i - 1]);\n", expected: "if (a+b>10 && ok) f(n+1, t[i-1]);\n" },
+	{ name: "JS ternary and strict equality", lang: "js", input: "const m = a > b ? a : b;\nif (a===b) {}\n", expected: "const m = a>b ? a : b;\nif (a === b) {}\n" },
+	{ name: "JS strings, templates, objects", lang: "js", input: "s = \"a\" + x;\nf(\"a\" + x);\nt = `${a + b}`;\no = {a: x + 1};\n", expected: "s = \"a\" + x;\nf(\"a\"+x);\nt = `${a+b}`;\no = {a: x+1};\n" },
+	{ name: "JS division is not a regex", lang: "js", input: "x = a / b / c;\nr = /a b/.test(s) ? 1 : 2;\n", expected: "x = a/b/c;\nr = /a b/.test(s) ? 1 : 2;\n" },
+	{
+		name: "JS layout engine, then operators: quotes stay as written",
+		lang: "js",
+		layout: pantoJs,
+		input: "function f(a)\n{\n    switch (a) {\n        case 1: x = 'a' + b; break\n    }\n    for (let i = 0; i < n; i++) y = a * b - c\n    return \"q\" + 'r'\n}\n",
+		expected: "function f(a) {\n\tswitch (a) {\n\tcase 1: x = 'a' + b; break;\n\t}\n\tfor (let i=0; i<n; i++) y = a*b - c;\n\treturn \"q\" + 'r';\n}\n",
+	},
+	{ name: "TypeScript generics untouched", lang: "ts", input: "let v: Array<number> = [a + 1];\n", expected: "let v: Array<number> = [a+1];\n" },
+	{ name: "TSX expression", lang: "tsx", input: "const el = <div>{a + b}</div>;\n", expected: "const el = <div>{a+b}</div>;\n" },
+
+	{ name: "C# for, ternary, arguments", lang: "cs", input: "class A { void F() { for (int i = 0; i < n; i++) x = a * b - c; var m = a > b ? a : b; G(n + 1, t[i - 1]); } }\n", expected: "class A { void F() { for (int i=0; i<n; i++) x = a*b - c; var m = a>b ? a : b; G(n+1, t[i-1]); } }\n" },
+	{ name: "C# interpolation and ??", lang: "cs", input: "class A { void F() { s = $\"{a + b}\"; x = a??b; } }\n", expected: "class A { void F() { s = $\"{a+b}\"; x = a ?? b; } }\n" },
+
+	{ name: "Java for, while, new array", lang: "java", input: "class A { void f() { for (int i = 0; i < n; i++) x = a * b - c; while (i < n) i++; int[] t = new int[n + 1]; } }\n", expected: "class A { void f() { for (int i=0; i<n; i++) x = a*b - c; while (i < n) i++; int[] t = new int[n+1]; } }\n" },
+	{ name: "Java ternary and concatenation", lang: "java", input: "class A { void f() { int m = a > b ? a : b; String s = \"a\" + x; g(\"a\" + x); } }\n", expected: "class A { void f() { int m = a>b ? a : b; String s = \"a\" + x; g(\"a\"+x); } }\n" },
+
+	{ name: "Python arithmetic and calls", lang: "py", input: "x = a * b - c\nif a + b > 10 and ok: f(n + 1, t[i - 1], key=v)\ny += -a\n", expected: "x = a*b - c\nif a+b>10 and ok: f(n+1, t[i-1], key=v)\ny+=-a\n" },
+	{ name: "Python chained comparison stays spaced", lang: "py", input: "z = 0<i<=n\nm = a if a > b else b\n", expected: "z = 0 < i <= n\nm = a if a>b else b\n" },
+	{ name: "Python power, floor division, f-string", lang: "py", input: "w = (a + b) ** 2\nq = a // b\ns = f\"{a + b}\"\n", expected: "w = (a+b)**2\nq = a//b\ns = f\"{a+b}\"\n" },
+	{ name: "Python defaults untouched", lang: "py", input: "def f(x=1, y: int = 2):\n    return x\n", expected: "def f(x=1, y: int = 2):\n    return x\n" },
+
+	{ name: "Rust let, if, calls", lang: "rs", input: "fn f() { let x = a * b - c; if a + b > 10 && ok { g(n + 1, t[i - 1]); } y += -a; }\n", expected: "fn f() { let x = a*b - c; if a+b>10 && ok { g(n+1, t[i-1]); } y+=-a; }\n" },
+	{ name: "Rust ranges and macros", lang: "rs", input: "fn f() { for i in 0..n + 1 {} println!(\"{}\", a + b); let v: Vec<i32> = vec![a + 1]; }\n", expected: "fn f() { for i in 0..n+1 {} println!(\"{}\", a + b); let v: Vec<i32> = vec![a + 1]; }\n" },
 
 	{ name: "C call arguments", lang: "c", input: "void f() { printf(\"%d\\n\", a * 2 + 1); }\n", expected: "void f() { printf(\"%d\\n\", a*2+1); }\n" },
 	{ name: "C do-while", lang: "c", input: "void f() { do { i++; } while (i < n); }\n", expected: "void f() { do { i++; } while (i < n); }\n" },
@@ -127,8 +181,9 @@ export async function selftest(): Promise<boolean> {
 	for (const test of cases) {
 		const lang = languages[test.lang]!;
 		const style = presets[test.preset ?? "panto"]!;
-		const first = await format(test.input, lang, style);
-		const again = await format(test.expected, lang, style);
+		const laid = (text: string) => test.layout ? jsLayout(text, test.layout.file, test.layout.settings) : text;
+		const first = await format(laid(test.input), lang, style);
+		const again = await format(laid(test.expected), lang, style);
 		const problems: string[] = [];
 		if (first.text !== test.expected) problems.push(`got:\n${first.text}\nexpected:\n${test.expected}`);
 		if (again.text !== test.expected) problems.push(`not stable, formatting the expected text gives:\n${again.text}`);

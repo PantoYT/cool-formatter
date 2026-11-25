@@ -1,7 +1,7 @@
 // Spacing rules. A style says, per operator, whether it gets a space on both
 // sides ("spaced"), none ("tight"), or is left as written ("keep").
 
-export type Spacing = "tight" | "spaced" | "keep";
+export type Spacing = "tight" | "spaced" | "keep" | "align"; // align: only for arrowMultiLine
 
 export interface Style {
 	name: string;
@@ -21,14 +21,15 @@ export interface Style {
 	assignmentInLoopHeader: Spacing; // = inside for (...)
 	ternary: Spacing;                // ? and :
 	arrowSingleLine: Spacing;        // => in an array literal written on one line
-	arrowMultiLine: Spacing;         // => in an array literal spanning lines
+	arrowMultiLine: Spacing;         // => in an array literal spanning lines; "align" lines them up
+	functionGap: "one" | "keep";     // blank lines between neighbouring function definitions
 }
 
 export const presets: Record<string, Style> = {
 	panto: {
 		name: "panto",
 		description: "2*a + 2*b, (a+b)*(a-b), x>0 && y<10, for (i=0; i<n; i++)",
-		tight: ["*", "/", "%", ".", "**"],
+		tight: ["*", "/", "%", ".", "**", "//", "@"],
 		spaced: ["==", "!=", "===", "!==", "<>", "<=>", "&&", "||", "and", "or", "xor", "??"],
 		contextual: [["+", "-"], ["<", ">", "<=", ">="]],
 		loopHeaderTight: ["==", "!=", "===", "!=="],
@@ -37,13 +38,14 @@ export const presets: Record<string, Style> = {
 		assignmentInLoopHeader: "tight",
 		ternary: "spaced",
 		arrowSingleLine: "tight",
-		arrowMultiLine: "keep",
+		arrowMultiLine: "align",
+		functionGap: "one",
 	},
 	classic: {
 		name: "classic",
 		description: "a space around every operator, as Prettier and PSR-12 do",
 		tight: [],
-		spaced: ["*", "/", "%", ".", "**", "==", "!=", "===", "!==", "<>", "<=>", "&&", "||", "and", "or", "xor", "??", "+", "-", "<", ">", "<=", ">="],
+		spaced: ["*", "/", "%", ".", "**", "//", "@", "==", "!=", "===", "!==", "<>", "<=>", "&&", "||", "and", "or", "xor", "??", "+", "-", "<", ">", "<=", ">="],
 		contextual: [],
 		loopHeaderTight: [],
 		compoundAssignment: "spaced",
@@ -52,12 +54,13 @@ export const presets: Record<string, Style> = {
 		ternary: "spaced",
 		arrowSingleLine: "spaced",
 		arrowMultiLine: "keep",
+		functionGap: "keep",
 	},
 };
 
 export const defaultPreset = "panto";
 
-const spacingValues = new Set(["tight", "spaced", "keep"]);
+const spacingValues = new Set(["tight", "spaced", "keep", "align"]);
 
 // Builds a style from a preset name plus optional overrides (from .cool-formatter.json).
 export function resolveStyle(preset: string, overrides: Record<string, unknown> = {}): Style {
@@ -72,8 +75,10 @@ export function resolveStyle(preset: string, overrides: Record<string, unknown> 
 			throw new Error(`unknown style option "${key}"`);
 		}
 		const current = (style as unknown as Record<string, unknown>)[key];
-		if (typeof current === "string" && !spacingValues.has(String(value))) {
-			throw new Error(`"${key}" must be tight, spaced or keep`);
+		if (key === "functionGap") {
+			if (value !== "one" && value !== "keep") throw new Error(`"functionGap" must be one or keep`);
+		} else if (typeof current === "string" && !spacingValues.has(String(value))) {
+			throw new Error(`"${key}" must be tight, spaced, keep or align`);
 		}
 		if (Array.isArray(current) && !Array.isArray(value)) {
 			throw new Error(`"${key}" must be a list`);

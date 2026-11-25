@@ -25,7 +25,8 @@ function findCode() {
 	return cli;
 }
 
-rmSync(work, { recursive: true, force: true });
+// Retries: Windows Search may hold a log file from the previous run for a moment.
+rmSync(work, { recursive: true, force: true, maxRetries: 10, retryDelay: 500 });
 mkdirSync(join(workspace, ".vscode"), { recursive: true });
 mkdirSync(join(workspace, "classic"), { recursive: true });
 writeFileSync(join(workspace, "classic", ".cool-formatter.json"), JSON.stringify({ preset: "classic" }));
@@ -34,6 +35,12 @@ writeFileSync(join(workspace, ".vscode", "settings.json"), JSON.stringify({
 	"[php]": formatter,
 	"[c]": formatter,
 	"[cpp]": formatter,
+	"[javascript]": formatter,
+	"[java]": formatter,
+	// Prettier off for JS, so VS Code's own JS formatter is the base: it keeps quotes as written.
+	"prettier.disableLanguages": ["javascript", "javascriptreact", "typescript", "typescriptreact"],
+	"javascript.format.semicolons": "insert",
+	"javascript.format.indentSwitchCase": false,
 	"editor.insertSpaces": false,
 	"editor.tabSize": 4,
 	"editor.detectIndentation": false,
@@ -50,7 +57,8 @@ const installed = existsSync(extensions) ? readdirSync(extensions) : [];
 const find = prefix => installed.filter(name => name.startsWith(prefix)).sort().pop();
 const intelephense = find("bmewburn.vscode-intelephense-client-");
 const cpptools = find("ms-vscode.cpptools-1");
-for (const [name, folder] of [["Intelephense", intelephense], ["C/C++", cpptools]]) {
+const prettier = find("esbenp.prettier-vscode-");
+for (const [name, folder] of [["Intelephense", intelephense], ["C/C++", cpptools], ["Prettier", prettier]]) {
 	if (folder) developmentPaths.push(join(extensions, folder));
 	else console.log(`${name} not found: its base-formatter cases will be skipped`);
 }

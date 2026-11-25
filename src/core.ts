@@ -17,7 +17,7 @@ export interface Result {
 	skipped?: string;
 }
 
-interface Edit {
+export interface Edit {
 	start: number;
 	end: number;
 	text: string;
@@ -28,7 +28,7 @@ interface Edit {
 const fusable = new Set([
 	"++", "--", "+=", "-=", "*=", "/=", "%=", ".=", "**", "->", "=>", "==", "!=", "<=", ">=",
 	"<<", ">>", "&&", "||", "??", "?:", "::", "..", "/*", "//", "*/", "<?", "?>", "<>",
-	"&=", "|=", "^=", "##", ".*", "<:", ":>", "<%", "%>", "%:", "!!",
+	"&=", "|=", "^=", "##", ".*", "<:", ":>", "<%", "%>", "%:", "!!", "<-", "?.",
 ]);
 const word = /[\p{L}\p{N}_$]/u;
 const digit = /[0-9]/;
@@ -48,6 +48,7 @@ class Pass {
 	tight: Set<string>;
 	spaced: Set<string>;
 	loopHeaderTight: Set<string>;
+	operatorFields: Set<string>;
 	edits = new Map<number, Edit>();
 	conflicts = new Set<number>();
 
@@ -58,7 +59,19 @@ class Pass {
 		this.tight = new Set(style.tight);
 		this.spaced = new Set(style.spaced);
 		this.loopHeaderTight = new Set(style.loopHeaderTight);
+		this.operatorFields = new Set(lang.operatorFields ?? ["operator"]);
 		style.contextual.forEach((group, i) => group.forEach(op => this.groups.set(op, i)));
+	}
+
+	// The operator tokens of a binary node; Python's a < b <= c has two.
+	operators(node: Node): Node[] {
+		const found: Node[] = [];
+		for (let i=0; i<node.childCount; i++) {
+			const field = node.fieldNameForChild(i);
+			const child = node.child(i);
+			if (child && field && this.operatorFields.has(field)) found.push(child);
+		}
+		return found;
 	}
 
 	run(root: Node): Edit[] {
@@ -79,9 +92,9 @@ class Pass {
 
 	visit(node: Node): void {
 		const lang = this.lang;
+		if (lang.functions && this.style.functionGap === "one") this.functionGaps(node);
 		if (lang.binary.has(node.type)) {
-			const op = node.childForFieldName("operator");
-			if (op) this.space(op, this.binary(op.type, node));
+			for (const op of this.operators(node)) this.space(op, this.binary(op.type, node));
 		} else if (lang.assignment.has(node.type)) {
 			const op = this.assignmentToken(node);
 			if (op) this.space(op, this.assignment(op.type, node));
@@ -92,8 +105,62 @@ class Pass {
 			const array = node.parent;
 			if (arrow && array && lang.arrayArrow.arrays.has(array.type)) {
 				const oneLine = !this.source.slice(array.startIndex, array.endIndex).includes("\n");
-				this.space(arrow, oneLine ? this.style.arrowSingleLine : this.style.arrowMultiLine);
+				const spacing = oneLine ? this.style.arrowSingleLine : this.style.arrowMultiLine;
+				if (spacing === "align") this.alignArrows(array, lang.arrayArrow.element);
+				else this.space(arrow, spacing);
 			}
+		}
+	}
+
+	// Exactly one blank line between two neighbouring function definitions.
+	// Only when nothing but whitespace separates them: a comment in between
+	// (a docblock) belongs to the next function and is left alone.
+	functionGaps(node: Node): void {
+		const functions = this.lang.functions!;
+		for (let i=1; i<node.childCount; i++) {
+			const prev = node.child(i - 1), next = node.child(i);
+			if (!prev || !next || !functions.has(prev.type) || !functions.has(next.type)) continue;
+			const current = this.source.slice(prev.endIndex, next.startIndex);
+			if (/\S/.test(current) || !current.includes("\n")) continue;
+			// A trailing comment can swallow the \r of a CRLF (Python's # comments
+			// do): the gap then starts at the \n, the file is still CRLF, and the
+			// \r already in place must not be written twice.
+			const swallowed = this.source[prev.endIndex - 1] === "\r" && current.startsWith("\n");
+			const eol = swallowed || current.includes("\r\n") ? "\r\n" : "\n";
+			let want = eol + eol + current.slice(current.lastIndexOf("\n") + 1);
+			if (swallowed) want = want.slice(1);
+			if (current !== want) this.edits.set(prev.endIndex, { start: prev.endIndex, end: next.startIndex, text: want });
+		}
+	}
+
+	// Lines up the => of a multi-line array in one column, one space past the
+	// longest key. Only elements that start their own line, with the key and
+	// the arrow on that line and the same indentation, take part.
+	aligned = new Set<number>();
+	alignArrows(array: Node, element: string): void {
+		if (this.aligned.has(array.id)) return;
+		this.aligned.add(array.id);
+		const src = this.source;
+		const rows: { key: Node; arrow: Node; column: number; indent: string }[] = [];
+		for (const item of array.children) {
+			if (!item || item.type !== element) continue;
+			const arrow = item.children.find(child => child?.type === "=>");
+			const key = arrow?.previousSibling;
+			if (!arrow || !key || key.isExtra) continue;
+			const lineStart = src.lastIndexOf("\n", item.startIndex - 1) + 1;
+			const indent = src.slice(lineStart, item.startIndex);
+			if (/[^ \t]/.test(indent) || src.slice(item.startIndex, arrow.startIndex).includes("\n")) continue;
+			rows.push({ key, arrow, column: key.endIndex - lineStart, indent });
+		}
+		if (rows.length < 2 || rows.some(row => row.indent !== rows[0]!.indent)) {
+			for (const row of rows) this.space(row.arrow, "spaced");
+			return;
+		}
+		const widest = Math.max(...rows.map(row => row.column));
+		for (const row of rows) {
+			this.gap(row.key.endIndex, row.arrow.startIndex, " ".repeat(widest - row.column + 1));
+			const next = row.arrow.nextSibling;
+			if (next && !next.isExtra) this.gap(row.arrow.endIndex, next.startIndex, " ");
 		}
 	}
 
@@ -122,7 +189,7 @@ class Pass {
 			const p = n.parent;
 			if (!p) return "spaced";
 			if (lang.binary.has(p.type)) {
-				const parentOp = p.childForFieldName("operator")?.type;
+				const parentOp = this.operators(p)[0]?.type;
 				if (parentOp !== undefined && this.groups.get(parentOp) === group) {
 					n = p;
 					continue;
@@ -172,7 +239,7 @@ class Pass {
 
 	// Sets the whitespace on both sides of an operator token.
 	space(op: Node, spacing: Spacing): void {
-		if (spacing === "keep") return;
+		if (spacing === "keep" || spacing === "align") return; // align is handled per array
 		const prev = op.previousSibling;
 		const next = op.nextSibling;
 		if (!prev || !next || prev.isExtra || next.isExtra) return;
@@ -206,13 +273,13 @@ function fieldOf(parent: Node, child: Node): string | null {
 	return null;
 }
 
-function tokens(tree: Tree): string[] {
-	const out: string[] = [];
+function tokens(tree: Tree): { key: string; line: number }[] {
+	const out: { key: string; line: number }[] = [];
 	const stack: Node[] = [tree.rootNode];
 	while (stack.length) {
 		const node = stack.pop()!;
 		if (node.childCount === 0) {
-			out.push(node.type + "\u0000" + node.text);
+			out.push({ key: node.type + "\u0000" + node.text, line: node.startPosition.row + 1 });
 			continue;
 		}
 		for (let i=node.childCount - 1; i>=0; i--) {
@@ -223,10 +290,18 @@ function tokens(tree: Tree): string[] {
 	return out;
 }
 
-function sameTokens(a: Tree, b: Tree): boolean {
+// The line (in a) of the first token that differs, or 0 when the streams match.
+function firstDifference(a: Tree, b: Tree): number {
 	const x = tokens(a);
 	const y = tokens(b);
-	return x.length === y.length && x.every((t, i) => t === y[i]);
+	for (let i=0; i<Math.max(x.length, y.length); i++) {
+		if (x[i]?.key !== y[i]?.key) return (x[i] ?? x[x.length - 1])?.line ?? 1;
+	}
+	return 0;
+}
+
+function sameTokens(a: Tree, b: Tree): boolean {
+	return firstDifference(a, b) === 0;
 }
 
 // The last line of defence, exported so the selftest can prove it bites.
@@ -239,6 +314,16 @@ export async function tokenizesSame(a: string, b: string, lang: Adapter): Promis
 	y?.delete();
 	parser.delete();
 	return same;
+}
+
+// The edits the pass would make, before any safety check. For debugging.
+export async function plan(source: string, lang: Adapter, style: Style): Promise<Edit[]> {
+	const parser = await parserFor(lang);
+	const tree = parser.parse(source);
+	const edits = tree ? new Pass(source, lang, style).run(tree.rootNode) : [];
+	tree?.delete();
+	parser.delete();
+	return edits;
 }
 
 export async function format(source: string, lang: Adapter, style: Style): Promise<Result> {
@@ -256,10 +341,16 @@ export async function format(source: string, lang: Adapter, style: Style): Promi
 		}
 		text += source.slice(at);
 		const check = parser.parse(text);
-		const safe = check !== null && check.rootNode.hasError === tree.rootNode.hasError && sameTokens(tree, check);
+		let skipped: string | undefined;
+		if (!check) skipped = "safety check failed: the result did not parse";
+		else if (check.rootNode.hasError !== tree.rootNode.hasError) skipped = "safety check failed: the result would not parse the same way";
+		else {
+			const line = firstDifference(tree, check);
+			if (line) skipped = `safety check failed: the result would tokenize differently near line ${line}`;
+		}
 		tree.delete();
 		check?.delete();
-		if (!safe) return { text: source, changed: false, edits: 0, skipped: "safety check failed: the result would tokenize differently" };
+		if (skipped) return { text: source, changed: false, edits: 0, skipped };
 		return { text, changed: text !== source, edits: edits.length };
 	} finally {
 		parser.delete();

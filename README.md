@@ -16,10 +16,12 @@ for ($i = 0; $i < $n; $i++) {                     for ($i=0; $i<$n; $i++) {
 echo "Area: " . $area . " cm2";                   echo "Area: ".$area." cm2";
 ```
 
-It works on PHP (including PHP inside HTML), C and C++, as a VS Code
-extension and as a command-line tool. Only the whitespace next to operators
-changes; braces, indentation and line wrapping stay the job of your usual
-formatter, which the extension runs first.
+It works on PHP (including PHP inside HTML), C, C++, JavaScript and
+TypeScript (with JSX/TSX), C#, Java, Python and Rust, as a VS Code extension
+and as a command-line tool. It changes whitespace only: around operators, the
+column of `=>` in multi-line PHP arrays and the blank line between functions.
+Braces, indentation and line wrapping stay the job of your usual formatter,
+which the extension runs first.
 
 ## Why another tool
 
@@ -35,16 +37,19 @@ for-loop header.
 
 | Operators | Spacing |
 |---|---|
-| `*` `/` `%` `**`, PHP `.` | always tight: `$sum/$n`, `"a".$b` |
+| `*` `/` `%` `**`, PHP `.`, Python `//` `@` | always tight: `$sum/$n`, `"a".$b` |
 | `==` `!=` `===` `!==` `<=>` `&&` `\|\|` `??` `and` `or` | always spaced, except `==`-like inside a for header |
 | `+` `-` and `<` `>` `<=` `>=` | spaced only when they are the loosest operator of a statement-level expression; tight under a looser operator, in grouping parentheses, call arguments, subscripts, array literals, a ternary or a for header |
 | `=` | spaced, tight inside a for header |
 | `+=` `-=` `.=` ... | tight: `$n+=1` |
 | `? :` | spaced, `?:` stays whole |
-| `=>` | tight in a one-line array, untouched in a multi-line (aligned) one |
+| `=>` | tight in a one-line array; in a multi-line one, lined up in a column one space past the longest key |
+| functions | exactly one blank line between neighbouring definitions (not when a comment sits between them) |
 
-The `classic` preset puts a space around every operator, as Prettier does.
-Bit operators, shifts and `instanceof` are always left as written.
+The `classic` preset puts a space around every operator, as Prettier does, and
+leaves arrays and blank lines alone. Bit operators, shifts, `instanceof`, `in`,
+`is` and Rust ranges are always left as written, and so are Rust macro
+arguments such as `println!(...)`, which the grammar sees as raw tokens.
 
 ## VS Code
 
@@ -59,18 +64,28 @@ Then make it the formatter of the languages you want:
 
 ```json
 "[php]": { "editor.defaultFormatter": "panto.cool-formatter" },
-"[c]":   { "editor.defaultFormatter": "panto.cool-formatter" },
-"[cpp]": { "editor.defaultFormatter": "panto.cool-formatter" }
+"[cpp]": { "editor.defaultFormatter": "panto.cool-formatter" },
+"[javascript]": { "editor.defaultFormatter": "panto.cool-formatter" }
 ```
 
-When it formats a document, it first asks VS Code for the edits of the
-language's other formatter (Intelephense, C/C++, ...), applies them, and then
-fixes the operators, so one Format Document or format-on-save does both.
+Language ids: `php`, `c`, `cpp`, `javascript`, `javascriptreact`, `typescript`,
+`typescriptreact`, `csharp`, `java`, `python`, `rust`.
+
+When it formats a document, it lays the document out first and then fixes the
+operators, so one Format Document or format-on-save does both:
+
+- JavaScript and TypeScript go through VS Code's own formatting engine (the
+  TypeScript language service, bundled), configured by your
+  `javascript.format.*` / `typescript.format.*` settings. It never rewrites
+  quotes, and it does not depend on which other formatter is installed;
+  Prettier would turn `'a'` into `"a"`.
+- Every other language goes through the formatter extension VS Code offers for
+  it: Intelephense, C/C++, C#, Ruff, rust-analyzer and so on.
 
 | Setting | Default | |
 |---|---|---|
 | `coolFormatter.preset` | `panto` | `panto` or `classic` |
-| `coolFormatter.baseFormatter` | `auto` | `auto` runs the other formatter first, `none` only fixes operators |
+| `coolFormatter.baseFormatter` | `auto` | `auto` as above, `extension` always asks the other extension (Prettier for JS too), `none` only fixes spacing |
 
 Skipped files (see Safety) are reported in the Cool Formatter output channel.
 
@@ -97,26 +112,31 @@ and overrides single options, for the extension and the command line alike:
 ```
 
 Every option of `src/style.ts` can be set; spacing values are `tight`,
-`spaced` or `keep`.
+`spaced` or `keep`, plus `align` for `arrowMultiLine`, and `functionGap` is
+`one` or `keep`.
 
 ## Safety
 
-- Only the whitespace directly around an operator is rewritten, never a line
-  break and never next to a comment.
+- Only whitespace is rewritten: around an operator never across a line break
+  or next to a comment, between functions only when nothing but whitespace
+  separates them, keeping the file's line endings.
 - A space is never removed where two characters would fuse into a longer
   token, the way real compilers read them: `a - -b` does not become `a--b`,
   `$x . 5` does not become `$x .5`, `a / *p` does not become a comment.
 - The result is parsed again and must give exactly the same tokens, otherwise
   the file is returned unchanged.
 
-It was run over about 280 real PHP and C++ files from school and olympiad
-work: every changed PHP file gave the same token stream from PHP's own
-`token_get_all`, and every changed C++ file compiled to identical assembly.
+It was run over about 500 real files from school, olympiad and personal
+projects, and each changed file was checked with the language's own tools:
+PHP's `token_get_all` (82 files), identical `g++ -S` assembly (65), the
+TypeScript parser's tokens for JS (32), Python's `tokenize` (100) and
+identical `javac` bytecode for the Java files that compile on their own (7).
+None differed. Rust and C# rely on the checks above.
 
 ## Development
 
 ```sh
-npm test               # selftest, 45 cases
+npm test               # selftest, 71 cases
 npm run typecheck
 npm run test:vscode    # extension tests in a throwaway VS Code instance
 ```
@@ -149,8 +169,8 @@ nearest-neighbour, so every pixel stays a sharp 4x4 square.
 Parsing is done by [tree-sitter](https://tree-sitter.github.io/) grammars
 compiled to WebAssembly, so nothing native is installed. A new language needs
 an adapter in `src/languages.ts` that names its node types (`tree` shows
-them) and selftest cases. Planned: JavaScript and TypeScript, C#, Java,
-Python and Rust.
+them) and selftest cases. Go is left out on purpose: gofmt already spaces
+by precedence and Go code is expected to be gofmt'ed.
 
 ## License
 
