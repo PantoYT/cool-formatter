@@ -13,7 +13,10 @@ import { homedir } from "node:os";
 import { dirname, join, resolve } from "node:path";
 
 const root = resolve(import.meta.dirname, "../..");
-const work = join(root, ".vscode-test");
+// A fresh folder per run: a leftover process (or Windows Search) can keep a
+// log file of an earlier run locked for a long time.
+const base = join(root, ".vscode-test");
+const work = join(base, `run-${Date.now()}`);
 const workspace = join(work, "workspace");
 const results = join(work, "results.json");
 
@@ -25,8 +28,11 @@ function findCode() {
 	return cli;
 }
 
-// Retries: Windows Search may hold a log file from the previous run for a moment.
-rmSync(work, { recursive: true, force: true, maxRetries: 10, retryDelay: 500 });
+if (existsSync(base)) {
+	for (const old of readdirSync(base)) {
+		try { rmSync(join(base, old), { recursive: true, force: true }); } catch { /* still locked: next run */ }
+	}
+}
 mkdirSync(join(workspace, ".vscode"), { recursive: true });
 mkdirSync(join(workspace, "classic"), { recursive: true });
 writeFileSync(join(workspace, "classic", ".cool-formatter.json"), JSON.stringify({ preset: "classic" }));
