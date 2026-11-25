@@ -1,7 +1,7 @@
 // Per-language adapters. tree-sitter already knows each language's precedence
 // (it is in the shape of the tree); an adapter only names the node types the
 // spacing rules care about. Adding a language means writing one of these and
-// its selftest cases. `opspace tree <file>` prints the node types of a file.
+// its selftest cases. `cool-formatter tree <file>` prints the node types of a file.
 
 export interface Adapter {
 	id: string;

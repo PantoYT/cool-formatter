@@ -59,7 +59,7 @@ export const defaultPreset = "panto";
 
 const spacingValues = new Set(["tight", "spaced", "keep"]);
 
-// Builds a style from a preset name plus optional overrides (from .opspace.json).
+// Builds a style from a preset name plus optional overrides (from .cool-formatter.json).
 export function resolveStyle(preset: string, overrides: Record<string, unknown> = {}): Style {
 	const base = presets[preset];
 	if (!base) {

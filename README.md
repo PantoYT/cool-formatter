@@ -1,10 +1,11 @@
-# opspace
+# Cool Formatter™
 
-Precedence-aware operator spacing for PHP, C and C++. Spaces show which
-operator binds loosest, so the shape of an expression is visible at a glance:
+Operator spacing that follows precedence, so code reads the way it binds.
+Spaces go around the operator that binds loosest and disappear where operands
+belong together:
 
 ```php
-// before (Prettier, PSR-12, clang-format)        // after opspace
+// before (Prettier, PSR-12, clang-format)        // after Cool Formatter
 $obw = 2 * $a + 2 * $b;                           $obw = 2*$a + 2*$b;
 $p = ($a + $b) * ($a - $b);                       $p = ($a+$b)*($a-$b);
 if ($x > 0 && $y < 10) {                          if ($x>0 && $y<10) {
@@ -13,15 +14,17 @@ for ($i = 0; $i < $n; $i++) {                     for ($i=0; $i<$n; $i++) {
 echo "Area: " . $area . " cm2";                   echo "Area: ".$area." cm2";
 ```
 
-opspace only touches the whitespace next to operators. Braces, indentation and
-line wrapping stay the job of your usual formatter; run opspace after it.
+It works on PHP (including PHP inside HTML), C and C++, as a VS Code
+extension and as a command-line tool. Only the whitespace next to operators
+changes; braces, indentation and line wrapping stay the job of your usual
+formatter, which the extension runs first.
 
 ## Why another tool
 
 Formatters that let you configure operator spacing (PHP-CS-Fixer, Uncrustify)
 do it per operator, so the best they can produce is `($a + $b)*($a - $b)`.
 yapf has a precedence mode for Python, and gofmt does this for Go, but nothing
-did it for the C family. opspace decides from the syntax tree, where
+did it for the C family. Cool Formatter decides from the syntax tree, where
 precedence is already encoded, so it knows the difference between a lone
 `$a + $b` and the same sum under a comparison, inside parentheses or inside a
 for-loop header.
@@ -41,6 +44,60 @@ for-loop header.
 The `classic` preset puts a space around every operator, as Prettier does.
 Bit operators, shifts and `instanceof` are always left as written.
 
+## VS Code
+
+Until it is on the Marketplace, build and install the package:
+
+```sh
+npm install
+npm run package                                  # cool-formatter-<version>.vsix
+code --install-extension cool-formatter-0.2.0.vsix
+```
+
+Then make it the formatter of the languages you want:
+
+```json
+"[php]": { "editor.defaultFormatter": "pantoyt.cool-formatter" },
+"[c]":   { "editor.defaultFormatter": "pantoyt.cool-formatter" },
+"[cpp]": { "editor.defaultFormatter": "pantoyt.cool-formatter" }
+```
+
+When it formats a document, it first asks VS Code for the edits of the
+language's other formatter (Intelephense, C/C++, ...), applies them, and then
+fixes the operators, so one Format Document or format-on-save does both.
+
+| Setting | Default | |
+|---|---|---|
+| `coolFormatter.preset` | `panto` | `panto` or `classic` |
+| `coolFormatter.baseFormatter` | `auto` | `auto` runs the other formatter first, `none` only fixes operators |
+
+Skipped files (see Safety) are reported in the Cool Formatter output channel.
+
+## Command line
+
+Requires Node.js 22.18 or newer (it runs the TypeScript sources directly).
+
+```sh
+node src/cli.ts file.php              # print the formatted file
+node src/cli.ts --write src/*.cpp     # rewrite in place
+node src/cli.ts --check src/*.php     # list files that would change, exit 1 if any
+node src/cli.ts --stdin --path x.php  # stdin to stdout, for editor integration
+node src/cli.ts tree file.cpp         # print the syntax tree
+node src/cli.ts selftest              # run the built-in cases
+```
+
+## Configuration file
+
+A `.cool-formatter.json` in the file's folder or any parent picks the preset
+and overrides single options, for the extension and the command line alike:
+
+```json
+{ "preset": "panto", "ternary": "keep", "arrowSingleLine": "spaced" }
+```
+
+Every option of `src/style.ts` can be set; spacing values are `tight`,
+`spaced` or `keep`.
+
 ## Safety
 
 - Only the whitespace directly around an operator is rewritten, never a line
@@ -55,35 +112,30 @@ It was run over about 280 real PHP and C++ files from school and olympiad
 work: every changed PHP file gave the same token stream from PHP's own
 `token_get_all`, and every changed C++ file compiled to identical assembly.
 
-## Usage
-
-Requires Node.js 22.18 or newer (it runs the TypeScript sources directly).
+## Development
 
 ```sh
-npm install
-node src/cli.ts file.php              # print the formatted file
-node src/cli.ts --write src/*.cpp     # rewrite in place
-node src/cli.ts --check src/*.php     # list files that would change, exit 1 if any
-node src/cli.ts --stdin --path x.php  # stdin to stdout, for editor integration
-node src/cli.ts tree file.cpp         # print the syntax tree
-node src/cli.ts selftest              # run the built-in cases
+npm test               # selftest, 45 cases
+npm run typecheck
+npm run test:vscode    # extension tests in a throwaway VS Code instance
 ```
 
-A `.opspace.json` in the file's folder or any parent picks the preset and
-overrides single options:
+`test:vscode` starts VS Code with its own profile under `.vscode-test/`, so
+your settings are untouched. If Intelephense is installed, it is loaded from
+your extensions folder to test the base-formatter chain. `VSCODE_BIN` and
+`VSCODE_EXTENSIONS` override where VS Code and the extensions are looked up.
 
-```json
-{ "preset": "panto", "ternary": "keep", "arrowSingleLine": "spaced" }
-```
+Parsing is done by [tree-sitter](https://tree-sitter.github.io/) grammars
+compiled to WebAssembly, so nothing native is installed. A new language needs
+an adapter in `src/languages.ts` that names its node types (`tree` shows
+them) and selftest cases. Planned: JavaScript and TypeScript, C#, Java,
+Python and Rust.
 
-Every option of `src/style.ts` can be set; spacing values are `tight`,
-`spaced` or `keep`.
+## License
 
-## Languages
+Copyright (C) 2026 Panto (PantoYT)
 
-PHP (including PHP inside HTML), C and C++. Parsing is done by
-[tree-sitter](https://tree-sitter.github.io/) grammars compiled to WebAssembly,
-so nothing native is installed. A new language needs an adapter in
-`src/languages.ts` that names its node types (`opspace tree` shows them) and
-selftest cases. Planned: JavaScript and TypeScript, C#, Java, Python, Rust,
-and a VS Code extension.
+This program is free software: you can redistribute it and/or modify it under
+the terms of the GNU General Public License as published by the Free Software
+Foundation, either version 3 of the License, or (at your option) any later
+version. See [LICENSE](LICENSE).

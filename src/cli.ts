@@ -1,20 +1,20 @@
 #!/usr/bin/env node
-// opspace command line.
+// Cool Formatter command line.
 
-import { existsSync, readFileSync, writeFileSync } from "node:fs";
-import { dirname, join, resolve } from "node:path";
+import { readFileSync, writeFileSync } from "node:fs";
 import { parseArgs } from "node:util";
+import { configFileName, loadStyle } from "./config.ts";
 import { format } from "./core.ts";
 import { type Adapter, languageForPath, languages } from "./languages.ts";
 import { parserFor } from "./parser.ts";
-import { defaultPreset, presets, resolveStyle, type Style } from "./style.ts";
+import { defaultPreset, presets, type Style } from "./style.ts";
 
-const usage = `opspace - precedence-aware operator spacing
+const usage = `cool-formatter - operator spacing that follows precedence
 
 usage:
-  opspace [options] <file>...   print the formatted file (one file) to stdout
-  opspace tree <file>           print the syntax tree, for writing adapters
-  opspace selftest              run the built-in cases
+  cool-formatter [options] <file>...   print the formatted file (one file) to stdout
+  cool-formatter tree <file>           print the syntax tree, for writing adapters
+  cool-formatter selftest              run the built-in cases
 
 options:
   -w, --write          rewrite the files in place
@@ -22,39 +22,22 @@ options:
       --stdin          read from stdin, write to stdout
       --lang <id>      ${Object.keys(languages).join(" | ")} (default: from the file extension)
       --path <file>    file name for language and config lookup with --stdin
-      --preset <name>  ${Object.keys(presets).join(" | ")} (default: ${defaultPreset}, or .opspace.json)
+      --preset <name>  ${Object.keys(presets).join(" | ")} (default: ${defaultPreset}, or ${configFileName})
   -h, --help
 
-A .opspace.json in the file's folder or any parent sets the preset and
+A ${configFileName} in the file's folder or any parent sets the preset and
 per-option overrides, e.g. {"preset": "panto", "ternary": "keep"}.`;
 
 function fail(message: string): never {
-	process.stderr.write(`opspace: ${message}\n`);
+	process.stderr.write(`cool-formatter: ${message}\n`);
 	process.exit(2);
 }
 
-function findConfig(from: string): string | null {
-	for (let dir = resolve(from); ; dir = dirname(dir)) {
-		const file = join(dir, ".opspace.json");
-		if (existsSync(file)) return file;
-		if (dirname(dir) === dir) return null;
-	}
-}
-
 function styleFor(path: string | undefined, preset: string | undefined): Style {
-	const config = path ? findConfig(dirname(path)) : null;
-	let overrides: Record<string, unknown> = {};
-	if (config) {
-		try {
-			overrides = JSON.parse(readFileSync(config, "utf8"));
-		} catch (error) {
-			fail(`${config}: ${(error as Error).message}`);
-		}
-	}
 	try {
-		return resolveStyle(preset ?? String(overrides.preset ?? defaultPreset), overrides);
+		return loadStyle(path, preset);
 	} catch (error) {
-		fail(`${config ?? "--preset"}: ${(error as Error).message}`);
+		fail((error as Error).message);
 	}
 }
 
@@ -106,7 +89,7 @@ async function main(): Promise<void> {
 	if (values.stdin) {
 		const source = readFileSync(0, "utf8");
 		const result = await format(source, languageOf(values.path, values.lang), styleFor(values.path, values.preset));
-		if (result.skipped) process.stderr.write(`opspace: ${values.path ?? "stdin"}: ${result.skipped}\n`);
+		if (result.skipped) process.stderr.write(`cool-formatter: ${values.path ?? "stdin"}: ${result.skipped}\n`);
 		process.stdout.write(result.text);
 		return;
 	}
@@ -121,7 +104,7 @@ async function main(): Promise<void> {
 	for (const path of positionals) {
 		const source = readFileSync(path, "utf8");
 		const result = await format(source, languageOf(path, values.lang), styleFor(path, values.preset));
-		if (result.skipped) process.stderr.write(`opspace: ${path}: ${result.skipped}\n`);
+		if (result.skipped) process.stderr.write(`cool-formatter: ${path}: ${result.skipped}\n`);
 		if (values.check) {
 			if (result.changed) {
 				pending++;
