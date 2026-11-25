@@ -46,12 +46,14 @@ jobs:
           name: vsix
           path: cool-formatter.vsix
 
-  publish:
+  # The three targets are separate jobs, so one failing store does not hold
+  # back the others; "Re-run failed jobs" then retries only what failed.
+  marketplace:
     needs: package
     if: github.ref_type == 'tag'
     runs-on: ubuntu-latest
     permissions:
-      contents: write # the GitHub release
+      contents: read
       id-token: write # trusted publishing
     steps:
       - uses: actions/checkout@v7
@@ -63,13 +65,39 @@ jobs:
       - uses: actions/download-artifact@v8
         with:
           name: vsix
-      - name: VS Code Marketplace
-        run: npx vsce publish --packagePath cool-formatter.vsix --oidc --skip-duplicate
-      - name: Open VSX
-        run: npx ovsx publish --packagePath cool-formatter.vsix --skip-duplicate
+      - run: npx vsce publish --packagePath cool-formatter.vsix --oidc --skip-duplicate
+
+  open-vsx:
+    needs: package
+    if: github.ref_type == 'tag'
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      id-token: write # Open VSX trusted publishing, used when OVSX_PAT is not set
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-node@v7
+        with:
+          node-version: 24
+          cache: npm
+      - run: npm ci
+      - uses: actions/download-artifact@v8
+        with:
+          name: vsix
+      - run: npx ovsx publish --packagePath cool-formatter.vsix --skip-duplicate
         env:
           OVSX_PAT: ${{ secrets.OVSX_PAT }}
-      - name: GitHub release
-        run: gh release create "$GITHUB_REF_NAME" cool-formatter.vsix --title "$GITHUB_REF_NAME" --generate-notes
+
+  github-release:
+    needs: package
+    if: github.ref_type == 'tag'
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/download-artifact@v8
+        with:
+          name: vsix
+      - run: gh release create "$GITHUB_REF_NAME" cool-formatter.vsix --repo "$GITHUB_REPOSITORY" --title "$GITHUB_REF_NAME" --generate-notes
         env:
           GH_TOKEN: ${{ github.token }}
