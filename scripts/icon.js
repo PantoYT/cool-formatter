@@ -8,8 +8,17 @@
 // `pixels` is the native resolution (default 32), `scale` the nearest-neighbour
 // upscale (default 128/pixels, so the file is 128x128 for the Marketplace).
 // TILT, LENGTH, DEPTH, WIDTH and PHASE in the environment change the shape.
-// art/icon.png is `node scripts/icon.js 32 art/icon.png`,
-// art/icon-64.png is `node scripts/icon.js 64 art/icon-64.png`.
+// STYLE=scribble draws only the bands' edges as a wobbly pen line on a white
+// sheet in the MS Paint palette (FILL=1 adds a pale wash, PEN sets the line
+// width, WOBBLE the hand shake, MARGIN the space to the sheet's edge).
+// STYLE=chunky renders at SS times the size (default 4) and lets each pixel
+// take the majority of its samples, which keeps edges and outlines clean
+// (COVER: share of samples a pixel needs to be filled, SEAM: depth step that
+// draws a seam, TONES=2: one colour per face). STYLE=woven replaces 3D depth
+// between strips with a fixed over-under rule.
+// The extension icon (art/icon-32.png) began as
+// `TILT=55 LENGTH=0.66 DEPTH=0.2 WIDTH=0.1 PHASE=0.6 node scripts/icon.js 32 <out> 1`
+// and was then finished by hand, so re-running this does not reproduce it.
 
 import { writeFileSync } from "node:fs";
 import { crc32, deflateSync } from "node:zlib";
@@ -84,9 +93,270 @@ for (let k=0; k<3; k++) {
 		}
 	}
 }
-const fit = (size - 2.5)/Math.max(maxX - minX, maxY - minY);
+const look = process.env.STYLE ?? "pixel";
+const margin = Number(process.env.MARGIN ?? ({ scribble: 9, woven: 4 }[look] ?? 2.5));
+const fit = (size - margin)/Math.max(maxX - minX, maxY - minY);
 const cx = size/2 - fit*(minX + maxX)/2, cy = size/2 + fit*(minY + maxY)/2;
+const pixels = new Uint8Array(size*size*4);
 
+if (look === "scribble") {
+	scribble();
+} else if (look === "woven") {
+	woven();
+} else if (look === "chunky") {
+	chunky();
+} else {
+	shaded();
+}
+
+// Chunky: the shaded bands with real 3D depth, rendered at SS times the
+// resolution and brought down by a majority vote of the samples in each pixel.
+// One sample per pixel gives ragged edges and broken outlines; the vote keeps
+// the shapes and the seams clean.
+function chunky() {
+	const SS = Number(process.env.SS ?? 4), big = size*SS;
+	const zb = new Float64Array(big*big).fill(-Infinity);
+	const ob = new Int8Array(big*big).fill(-1);
+	const tb = new Int8Array(big*big);
+	const h = 1e-4;
+	for (let k=0; k<3; k++) {
+		const P = strip(k);
+		const steps = 40*big, across = 2*big;
+		for (let i=0; i<steps; i++) {
+			const u = 2*Math.PI*i/steps;
+			for (let j=0; j<=across; j++) {
+				const v = -width + 2*width*j/across;
+				const p = P(u, v);
+				const px = Math.floor((cx + fit*p[0])*SS), py = Math.floor((cy - fit*p[1])*SS);
+				if (px<0 || py<0 || px>=big || py>=big) continue;
+				const idx = py*big + px;
+				if (p[2] <= zb[idx]) continue;
+				const normal = norm(cross(sub(P(u + h, v), p), sub(P(u, v + h), p)));
+				zb[idx] = p[2];
+				ob[idx] = k;
+				const front = dot(normal, view) >= 0;
+				// TONES=2: one colour per face, so the twist shows as light turning dark.
+				tb[idx] = process.env.TONES === "2" ? (front ? 3 : 0) : (front ? 2 : 0) + (Math.abs(dot(normal, light)) > 0.55 ? 1 : 0);
+			}
+		}
+	}
+
+	const owner = new Int8Array(size*size).fill(-1);
+	const tone = new Int8Array(size*size).fill(-1);
+	const z = new Float64Array(size*size).fill(-Infinity);
+	const cover = Number(process.env.COVER ?? 0.4);
+	for (let y=0; y<size; y++) {
+		for (let x=0; x<size; x++) {
+			const votes = new Map();
+			let filled = 0;
+			for (let sy=0; sy<SS; sy++) {
+				for (let sx=0; sx<SS; sx++) {
+					const s = (y*SS + sy)*big + x*SS + sx;
+					if (ob[s] < 0) continue;
+					filled++;
+					const key = ob[s]*4 + tb[s];
+					votes.set(key, (votes.get(key) ?? 0) + 1);
+				}
+			}
+			if (filled < cover*SS*SS) continue;
+			const key = [...votes.entries()].sort((a, b) => b[1] - a[1])[0][0];
+			const idx = y*size + x;
+			owner[idx] = key >> 2;
+			tone[idx] = key & 3;
+			let sum = 0, n = 0;
+			for (let sy=0; sy<SS; sy++) {
+				for (let sx=0; sx<SS; sx++) {
+					const s = (y*SS + sy)*big + x*SS + sx;
+					if (ob[s] === owner[idx]) { sum += zb[s]; n++; }
+				}
+			}
+			z[idx] = sum/n;
+		}
+	}
+
+	const neighbours = (x, y) => [[1, 0], [-1, 0], [0, 1], [0, -1]]
+		.map(([dx, dy]) => [x + dx, y + dy])
+		.filter(([qx, qy]) => qx>=0 && qy>=0 && qx<size && qy<size)
+		.map(([qx, qy]) => qy*size + qx);
+
+	for (let y=0; y<size; y++) {
+		for (let x=0; x<size; x++) {
+			const idx = y*size + x;
+			if (owner[idx] < 0) continue;
+			const same = neighbours(x, y).filter(q => owner[q] === owner[idx]);
+			if (same.length < 3 || same.some(q => tone[q] === tone[idx])) continue;
+			const counts = [0, 0, 0, 0];
+			same.forEach(q => counts[tone[q]]++);
+			const best = counts.indexOf(Math.max(...counts));
+			if (counts[best] >= 3) tone[idx] = best;
+		}
+	}
+
+	const seam = Number(process.env.SEAM ?? 0.6)*width;
+	for (let y=0; y<size; y++) {
+		for (let x=0; x<size; x++) {
+			const idx = y*size + x;
+			const near = neighbours(x, y);
+			if (owner[idx] < 0) {
+				if (near.some(q => owner[q] >= 0)) pixels.set(outline, idx*4);
+				continue;
+			}
+			// Seam on whichever pixel lies clearly behind its neighbour: another
+			// strip passing in front, or the same strip folding over at its twist.
+			const behind = near.some(q => owner[q] >= 0 && z[q] - z[idx] > seam);
+			pixels.set(behind ? outline : palettes[owner[idx]][tone[idx]], idx*4);
+		}
+	}
+}
+
+// Woven: the shaded bands, but where two strips overlap, the one on top is
+// chosen by a fixed over-under rule instead of 3D depth, like chain links. In
+// this scene the loops really intersect in 3D, which the z-buffer shows as
+// ragged clipping; the rule makes them look threaded through each other. At
+// each corner the strip that starts there goes over on one side of the line
+// from the corner to the centre and under on the other.
+function woven() {
+	const layers = [0, 1, 2].map(() => ({ z: new Float64Array(size*size).fill(-Infinity), tone: new Int8Array(size*size).fill(-1) }));
+	const h = 1e-4;
+	for (let k=0; k<3; k++) {
+		const P = strip(k);
+		const { z, tone } = layers[k];
+		const steps = 60*size, across = 3*size;
+		for (let i=0; i<steps; i++) {
+			const u = 2*Math.PI*i/steps;
+			for (let j=0; j<=across; j++) {
+				const v = -width + 2*width*j/across;
+				const p = P(u, v);
+				const px = Math.floor(cx + fit*p[0]), py = Math.floor(cy - fit*p[1]);
+				if (px<0 || py<0 || px>=size || py>=size) continue;
+				const idx = py*size + px;
+				if (p[2] <= z[idx]) continue;
+				const normal = norm(cross(sub(P(u + h, v), p), sub(P(u, v + h), p)));
+				z[idx] = p[2];
+				tone[idx] = (dot(normal, view) >= 0 ? 2 : 0) + (Math.abs(dot(normal, light)) > 0.55 ? 1 : 0);
+			}
+		}
+	}
+
+	const screen = p => [cx + fit*p[0], cy - fit*p[1]];
+	const centre = screen([0, -0.12, 0]);
+	const corners = [0, 1, 2].map(i => screen(vertex(i)));
+	const over = (a, b, x, y) => {
+		const shared = sides[a].find(i => sides[b].includes(i));
+		const [vx, vy] = corners[shared];
+		const left = (centre[0] - vx)*(y + 0.5 - vy) - (centre[1] - vy)*(x + 0.5 - vx) > 0;
+		return left === (sides[a][0] === shared);
+	};
+
+	const owner = new Int8Array(size*size).fill(-1);
+	const tone = new Int8Array(size*size).fill(-1);
+	for (let y=0; y<size; y++) {
+		for (let x=0; x<size; x++) {
+			const idx = y*size + x;
+			let top = -1;
+			for (let k=0; k<3; k++) {
+				if (layers[k].tone[idx] < 0) continue;
+				if (top < 0 || over(k, top, x, y)) top = k;
+			}
+			owner[idx] = top;
+			if (top >= 0) tone[idx] = layers[top].tone[idx];
+		}
+	}
+
+	const neighbours = (x, y) => [[1, 0], [-1, 0], [0, 1], [0, -1]]
+		.map(([dx, dy]) => [x + dx, y + dy])
+		.filter(([qx, qy]) => qx>=0 && qy>=0 && qx<size && qy<size);
+
+	// Lone pixels whose shade none of their neighbours share become the majority shade.
+	for (let y=0; y<size; y++) {
+		for (let x=0; x<size; x++) {
+			const idx = y*size + x;
+			if (owner[idx] < 0) continue;
+			const same = neighbours(x, y).map(([qx, qy]) => qy*size + qx).filter(q => owner[q] === owner[idx]);
+			if (same.length < 3 || same.some(q => tone[q] === tone[idx])) continue;
+			const counts = [0, 0, 0, 0];
+			same.forEach(q => counts[tone[q]]++);
+			const best = counts.indexOf(Math.max(...counts));
+			if (counts[best] >= 3) tone[idx] = best;
+		}
+	}
+
+	const fold = Number(process.env.FOLD ?? 1.2)*width;
+	for (let y=0; y<size; y++) {
+		for (let x=0; x<size; x++) {
+			const idx = y*size + x;
+			const near = neighbours(x, y).map(([qx, qy]) => [qx, qy, qy*size + qx]);
+			const k = owner[idx];
+			if (k < 0) {
+				if (near.some(([, , q]) => owner[q] >= 0)) pixels.set(outline, idx*4);
+				continue;
+			}
+			// Seam on the lower strip where another strip passes over it, and
+			// where a strip folds over itself at its twist.
+			const under = near.some(([, , q]) => owner[q] >= 0 && owner[q] !== k && over(owner[q], k, x, y));
+			const behindFold = near.some(([, , q]) => owner[q] === k && layers[k].z[q] - layers[k].z[idx] > fold);
+			pixels.set(under || behindFold ? outline : palettes[k][tone[idx]], idx*4);
+		}
+	}
+}
+
+// Scribble: only the edge of each band, as a wobbly pen line on a white sheet,
+// in the MS Paint palette. A Möbius strip has a single edge that runs around
+// twice; where the band turns over, its edge lines cross, and that crossing is
+// what shows the twist even at 64 pixels.
+function scribble() {
+	const ink = [["#880015", "#ed1c24"], ["#22b14c", "#b5e61d"], ["#3f48cc", "#00a2e8"]].map(p => p.map(hex));
+	const paper = hex("#ffffff"), rim = hex(process.env.RIM ?? "#c3c3c3");
+	const pen = Number(process.env.PEN ?? 1);
+	const wobble = Number(process.env.WOBBLE ?? 0.7);
+	for (let y=0; y<size; y++) {
+		for (let x=0; x<size; x++) {
+			const corner = Math.min(x, size - 1 - x) + Math.min(y, size - 1 - y);
+			if (corner < 2) continue;
+			const edge = x === 0 || y === 0 || x === size - 1 || y === size - 1 || corner === 2;
+			pixels.set(edge ? rim : paper, (y*size + x)*4);
+		}
+	}
+	const z = new Float64Array(size*size).fill(-Infinity);
+	const plot = (sx, sy, depth, rgba) => {
+		for (let dy=0; dy<pen; dy++) {
+			for (let dx=0; dx<pen; dx++) {
+				const px = Math.round(sx) + dx - (pen >> 1), py = Math.round(sy) + dy - (pen >> 1);
+				if (px<1 || py<1 || px>=size - 1 || py>=size - 1) continue;
+				const idx = py*size + px;
+				if (depth < z[idx]) continue;
+				z[idx] = depth;
+				pixels.set(rgba, idx*4);
+			}
+		}
+	};
+	const h = 1e-4;
+	for (let k=0; k<3; k++) {
+		const P = strip(k);
+		if (process.env.FILL === "1") {
+			// A pale wash of the band, so a nearer band hides the lines behind it.
+			const wash = ink[k][1].map((c, i) => i === 3 ? 255 : Math.round(c*0.22 + 255*0.78));
+			for (let i=0; i<60*size; i++) {
+				for (let j=0; j<=3*size; j++) {
+					const p = P(2*Math.PI*i/(60*size), -width + 2*width*j/(3*size));
+					plot(cx + fit*p[0], cy - fit*p[1], p[2], wash);
+				}
+			}
+		}
+		const steps = 400*size;
+		const seed = [1.3 + k, 2.1 + 2*k, 0.4 + 0.7*k];
+		for (let i=0; i<=steps*1.03; i++) { // a little past the start, like a hand closing a loop
+			const t = 4*Math.PI*i/steps;
+			const p = P(t, width);
+			const normal = cross(sub(P(t + h, width), p), sub(P(t, width + h), p));
+			const sx = cx + fit*p[0] + wobble*(Math.sin(3*t + seed[0]) + 0.4*Math.sin(11*t + seed[1]));
+			const sy = cy - fit*p[1] + wobble*(Math.cos(2*t + seed[2]) + 0.4*Math.cos(13*t + seed[0]));
+			plot(sx, sy, p[2] + 0.05, ink[k][dot(normal, view) >= 0 ? 1 : 0]);
+		}
+	}
+}
+
+function shaded() {
 for (let k=0; k<3; k++) {
 	const P = strip(k);
 	const steps = 60*size, across = 3*size, h = 1e-4;
@@ -111,7 +381,6 @@ for (let k=0; k<3; k++) {
 }
 
 // --- pixel-art finish: outer outline, and a dark seam where one strip passes behind another
-const pixels = new Uint8Array(size*size*4);
 const put = (idx, rgba) => pixels.set(rgba, idx*4);
 for (let y=0; y<size; y++) {
 	for (let x=0; x<size; x++) {
@@ -127,6 +396,7 @@ for (let y=0; y<size; y++) {
 		const behind = around.some(q => owner[q] >= 0 && owner[q] !== owner[idx] && zbuf[q] > zbuf[idx] + 0.04);
 		put(idx, behind ? outline : palettes[owner[idx]][tone[idx]]);
 	}
+}
 }
 
 // --- PNG (RGBA, nearest-neighbour upscale) -----------------------------------

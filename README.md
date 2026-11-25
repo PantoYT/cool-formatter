@@ -128,9 +128,11 @@ installed, they are loaded from your extensions folder to test the
 base-formatter chain. `VSCODE_BIN` and `VSCODE_EXTENSIONS` override where VS
 Code and the extensions are looked up.
 
-The icon is rendered, not drawn: `node scripts/icon.js` traces three Möbius
-strips in 3D into a 32x32 z-buffer and quantizes them to a fixed palette.
-`art/icon-64.png` is the same scene at 64x64.
+The icon started as a render and was finished by hand. `scripts/icon.js`
+traces three Möbius strips in 3D into a small z-buffer and quantizes them to a
+fixed palette; the 32x32 result was then edited pixel by pixel.
+`art/icon-32.png` is that original, `art/icon.png` the same scaled 4x with
+nearest-neighbour, so every pixel stays a sharp 4x4 square.
 
 Parsing is done by [tree-sitter](https://tree-sitter.github.io/) grammars
 compiled to WebAssembly, so nothing native is installed. A new language needs
