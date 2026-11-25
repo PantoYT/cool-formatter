@@ -59,9 +59,9 @@ code --install-extension cool-formatter-0.2.0.vsix
 Then make it the formatter of the languages you want:
 
 ```json
-"[php]": { "editor.defaultFormatter": "pantoyt.cool-formatter" },
-"[c]":   { "editor.defaultFormatter": "pantoyt.cool-formatter" },
-"[cpp]": { "editor.defaultFormatter": "pantoyt.cool-formatter" }
+"[php]": { "editor.defaultFormatter": "panto.cool-formatter" },
+"[c]":   { "editor.defaultFormatter": "panto.cool-formatter" },
+"[cpp]": { "editor.defaultFormatter": "panto.cool-formatter" }
 ```
 
 When it formats a document, it first asks VS Code for the edits of the

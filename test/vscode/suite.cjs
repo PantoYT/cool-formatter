@@ -44,7 +44,7 @@ async function waitForBase(file, probe) {
 exports.run = async function () {
 	const ws = vscode.workspace.workspaceFolders[0].uri.fsPath;
 	try {
-		await vscode.extensions.getExtension("pantoyt.cool-formatter").activate();
+		await vscode.extensions.getExtension("panto.cool-formatter").activate();
 
 		const cpp = "int main()\n{\n    for (int i = 0; i < n; i++) x = a * b - c;\n}\n";
 		if (process.env.COOL_FORMATTER_CPPTOOLS) {

@@ -2,10 +2,10 @@
 	"name": "cool-formatter",
 	"displayName": "Cool Formatter™",
 	"description": "Operator spacing that follows precedence, so code reads the way it binds.",
-	"version": "0.2.2",
+	"version": "0.3.0",
 	"icon": "art/icon.png",
 	"private": true,
-	"publisher": "pantoyt",
+	"publisher": "panto",
 	"license": "GPL-3.0-or-later",
 	"repository": {
 		"type": "git",

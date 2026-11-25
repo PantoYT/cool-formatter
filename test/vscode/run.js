@@ -29,7 +29,7 @@ rmSync(work, { recursive: true, force: true });
 mkdirSync(join(workspace, ".vscode"), { recursive: true });
 mkdirSync(join(workspace, "classic"), { recursive: true });
 writeFileSync(join(workspace, "classic", ".cool-formatter.json"), JSON.stringify({ preset: "classic" }));
-const formatter = { "editor.defaultFormatter": "pantoyt.cool-formatter" };
+const formatter = { "editor.defaultFormatter": "panto.cool-formatter" };
 writeFileSync(join(workspace, ".vscode", "settings.json"), JSON.stringify({
 	"[php]": formatter,
 	"[c]": formatter,
