@@ -48,10 +48,11 @@ exports.run = async function () {
 
 		const cpp = "int main()\n{\n    for (int i = 0; i < n; i++) x = a * b - c;\n}\n";
 		if (process.env.COOL_FORMATTER_CPPTOOLS) {
-			check("C/C++ extension came up", await waitForBase(path.join(ws, "ready.cpp"), "int f()\n{\nreturn 1;\n}\n"), true);
-			check("C++: clang-format first, then the operators",
-				await formatted(path.join(ws, "a.cpp"), cpp),
-				"int main() {\n\tfor (int i=0; i<n; i++)\n\t\tx = a*b - c;\n}\n");
+			check("C/C++ extension came up", await waitForBase(path.join(ws, "ready.cpp"), "int f() {\nreturn 1;\n}\n"), true);
+			const out = await formatted(path.join(ws, "a.cpp"), cpp);
+			contains("C++: clang-format ran (its default style breaks the loop body)", out, "for (int i=0; i<n; i++)\n");
+			contains("C++: brace on the header line without any clang-format style", out, "int main() {");
+			contains("C++: operators", out, "x = a*b - c;");
 		} else {
 			check("C++ without a base formatter",
 				await formatted(path.join(ws, "a.cpp"), cpp),
@@ -70,6 +71,14 @@ exports.run = async function () {
 			await formatted(path.join(ws, "A.java"), "class A { int f() { return (a + b) * 2; } }\n"),
 			"class A { int f() { return (a+b)*2; } }\n");
 
+		// A language without an adapter is passed on to its own formatter.
+		const html = await formatted(path.join(ws, "a.html"), "<div><p>x</p>\n</div>\n");
+		check("HTML is passed on to VS Code's HTML formatter", html !== "<div><p>x</p>\n</div>\n", true);
+
+		await vscode.commands.executeCommand("coolFormatter.useEverywhere");
+		check("the setup command makes it the default formatter",
+			vscode.workspace.getConfiguration("editor").inspect("defaultFormatter").globalValue, "panto.cool-formatter");
+
 		check(".cool-formatter.json picks the classic preset",
 			await formatted(path.join(ws, "classic", "b.php"), "<?php\n$p = ($a+$b)*($a-$b);\n"),
 			"<?php\n$p = ($a + $b) * ($a - $b);\n");
@@ -82,11 +91,11 @@ exports.run = async function () {
 		check("format on save", doc.getText().includes("$x = $a*2 + 1;"), true);
 
 		if (process.env.COOL_FORMATTER_INTELEPHENSE) {
-			const ready = await waitForBase(path.join(ws, "ready.php"), "<?php\nfunction f()\n{\nreturn 1;\n}\n");
+			const ready = await waitForBase(path.join(ws, "ready.php"), "<?php\nfunction f() {\nreturn 1;\n}\n");
 			check("Intelephense came up", ready, true);
 			const text = await formatted(path.join(ws, "d.php"),
 				"<?php\nfunction srednia(array $zmienne)\n{\n$suma = 0;\nforeach ($zmienne as $z) {\n$suma += $z;\n}\nreturn $suma / count($zmienne);\n}\n");
-			contains("Intelephense ran first: k&r brace", text, "function srednia(array $zmienne) {");
+			contains("PHP: brace on the header line without the k&r setting", text, "function srednia(array $zmienne) {");
 			contains("Intelephense ran first: indentation", text, "\n\t$suma = 0;");
 			contains("then the operators: compound", text, "$suma+=$z;");
 			contains("then the operators: division", text, "return $suma/count($zmienne);");
@@ -95,7 +104,7 @@ exports.run = async function () {
 			await sleep(300);
 			check("baseFormatter none skips Intelephense",
 				await formatted(path.join(ws, "e.php"), "<?php\nfunction f()\n{\nreturn $a * 2;\n}\n"),
-				"<?php\nfunction f()\n{\nreturn $a*2;\n}\n");
+				"<?php\nfunction f() {\nreturn $a*2;\n}\n");
 		}
 	} catch (error) {
 		results.push({ name: "suite crashed", ok: false, got: String(error && error.stack || error), want: "no exception" });

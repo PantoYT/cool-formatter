@@ -18,6 +18,7 @@ export interface Adapter {
 	loops: Map<string, Set<string>>;  // loop node -> fields that form its header
 	arrayArrow?: { element: string; arrays: Set<string> };
 	functions?: Set<string>;          // definitions that get one blank line between them
+	blocks?: Set<string>;             // bodies whose { can move up to the line of their header
 }
 
 const set = (...items: string[]) => new Set(items);
@@ -25,6 +26,7 @@ const none = new Map<string, Set<string>>();
 
 const php: Adapter = {
 	id: "php",
+	blocks: set("compound_statement", "declaration_list", "enum_declaration_list", "switch_block", "match_block"),
 	functions: set("function_definition", "method_declaration"),
 	grammar: "tree-sitter-php/tree-sitter-php.wasm",
 	extensions: [".php", ".phtml", ".inc"],
@@ -41,6 +43,7 @@ const php: Adapter = {
 
 const c: Adapter = {
 	id: "c",
+	blocks: set("compound_statement", "field_declaration_list", "enumerator_list"),
 	functions: set("function_definition"),
 	grammar: "tree-sitter-c/tree-sitter-c.wasm",
 	extensions: [".c"],
@@ -57,6 +60,7 @@ const c: Adapter = {
 const cpp: Adapter = {
 	...c,
 	id: "cpp",
+	blocks: set("compound_statement", "field_declaration_list", "enumerator_list", "declaration_list"),
 	functions: set("function_definition", "template_declaration"),
 	grammar: "tree-sitter-cpp/tree-sitter-cpp.wasm",
 	extensions: [".cpp", ".cc", ".cxx", ".c++", ".hpp", ".hh", ".hxx", ".h", ".ino"],
@@ -65,6 +69,7 @@ const cpp: Adapter = {
 
 const js: Adapter = {
 	id: "js",
+	blocks: set("statement_block", "class_body", "switch_body"),
 	functions: set("function_declaration", "generator_function_declaration", "method_definition"),
 	grammar: "tree-sitter-javascript/tree-sitter-javascript.wasm",
 	extensions: [".js", ".mjs", ".cjs", ".jsx"],
@@ -94,6 +99,7 @@ const tsx: Adapter = {
 
 const cs: Adapter = {
 	id: "cs",
+	blocks: set("block", "declaration_list", "enum_member_declaration_list", "switch_body", "accessor_list"),
 	functions: set("method_declaration", "constructor_declaration", "local_function_statement"),
 	grammar: "tree-sitter-c-sharp/tree-sitter-c_sharp.wasm",
 	extensions: [".cs"],
@@ -109,6 +115,7 @@ const cs: Adapter = {
 
 const java: Adapter = {
 	id: "java",
+	blocks: set("block", "class_body", "interface_body", "enum_body", "switch_block", "constructor_body"),
 	functions: set("method_declaration", "constructor_declaration"),
 	grammar: "tree-sitter-java/tree-sitter-java.wasm",
 	extensions: [".java"],
@@ -141,6 +148,7 @@ const py: Adapter = {
 
 const rs: Adapter = {
 	id: "rs",
+	blocks: set("block", "declaration_list", "field_declaration_list", "match_block", "enum_variant_list"),
 	functions: set("function_item"),
 	grammar: "tree-sitter-rust/tree-sitter-rust.wasm",
 	extensions: [".rs"],

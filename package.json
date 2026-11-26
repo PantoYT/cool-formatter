@@ -2,7 +2,7 @@
 	"name": "cool-formatter",
 	"displayName": "Cool Formatter™",
 	"description": "Operator spacing that follows precedence, so code reads the way it binds.",
-	"version": "0.4.0",
+	"version": "0.5.0",
 	"icon": "art/icon.png",
 	"private": true,
 	"publisher": "panto",
@@ -37,17 +37,7 @@
 	},
 	"main": "./dist/extension.cjs",
 	"activationEvents": [
-		"onLanguage:php",
-		"onLanguage:c",
-		"onLanguage:cpp",
-		"onLanguage:javascript",
-		"onLanguage:javascriptreact",
-		"onLanguage:typescript",
-		"onLanguage:typescriptreact",
-		"onLanguage:csharp",
-		"onLanguage:java",
-		"onLanguage:python",
-		"onLanguage:rust"
+		"onStartupFinished"
 	],
 	"contributes": {
 		"configuration": {
@@ -74,7 +64,7 @@
 						"none"
 					],
 					"enumDescriptions": [
-						"Lay the document out first: JavaScript and TypeScript with VS Code's own formatting engine (javascript.format.* settings), other languages with their formatter extension (Intelephense, C/C++, ...)",
+						"Lay the document out first: JavaScript and TypeScript with VS Code's own formatting engine, other languages with their formatter extension (Intelephense, C/C++, ...). Languages without their own rules are simply passed to that extension.",
 						"Always use the formatter extension VS Code offers for the language, Prettier included",
 						"Only fix operator spacing"
 					],
@@ -82,7 +72,14 @@
 					"description": "What happens before the operator spacing pass."
 				}
 			}
-		}
+		},
+		"commands": [
+			{
+				"command": "coolFormatter.useEverywhere",
+				"title": "Use for all languages (and format on save)",
+				"category": "Cool Formatter"
+			}
+		]
 	},
 	"bin": {
 		"cool-formatter": "src/cli.ts"

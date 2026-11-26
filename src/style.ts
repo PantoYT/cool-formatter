@@ -23,6 +23,10 @@ export interface Style {
 	arrowSingleLine: Spacing;        // => in an array literal written on one line
 	arrowMultiLine: Spacing;         // => in an array literal spanning lines; "align" lines them up
 	functionGap: "one" | "keep";     // blank lines between neighbouring function definitions
+	braces: "attach" | "keep";       // { on the line of its header, } else { on one line
+	// JS/TS layout options (javascript.format.* names) the preset brings along;
+	// a value set in VS Code by the user still wins.
+	jsLayout: Record<string, unknown>;
 }
 
 export const presets: Record<string, Style> = {
@@ -40,6 +44,8 @@ export const presets: Record<string, Style> = {
 		arrowSingleLine: "tight",
 		arrowMultiLine: "align",
 		functionGap: "one",
+		braces: "attach",
+		jsLayout: { semicolons: "insert", indentSwitchCase: false },
 	},
 	classic: {
 		name: "classic",
@@ -55,6 +61,8 @@ export const presets: Record<string, Style> = {
 		arrowSingleLine: "spaced",
 		arrowMultiLine: "keep",
 		functionGap: "keep",
+		braces: "keep",
+		jsLayout: {},
 	},
 };
 
@@ -77,6 +85,8 @@ export function resolveStyle(preset: string, overrides: Record<string, unknown> 
 		const current = (style as unknown as Record<string, unknown>)[key];
 		if (key === "functionGap") {
 			if (value !== "one" && value !== "keep") throw new Error(`"functionGap" must be one or keep`);
+		} else if (key === "braces") {
+			if (value !== "attach" && value !== "keep") throw new Error(`"braces" must be attach or keep`);
 		} else if (typeof current === "string" && !spacingValues.has(String(value))) {
 			throw new Error(`"${key}" must be tight, spaced, keep or align`);
 		}

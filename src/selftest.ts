@@ -41,14 +41,12 @@ function srednia(array $zmienne)
 	$avg = $suma / $n;
 	return $avg;
 }`),
-		expected: php(`function obw_prostokata(int $a, int $b)
-{
+		expected: php(`function obw_prostokata(int $a, int $b) {
 	$obw = 2*$a + 2*$b;
 	return $obw;
 }
 
-function srednia(array $zmienne)
-{
+function srednia(array $zmienne) {
 	$n = 0;
 	$suma = 0;
 	foreach ($zmienne as $zmienna) {
@@ -94,6 +92,13 @@ function srednia(array $zmienne)
 	{ name: "blank line keeps Windows line endings", lang: "php", input: "<?php\r\nfunction a() {}\r\nfunction b() {}\r\n", expected: "<?php\r\nfunction a() {}\r\n\r\nfunction b() {}\r\n" },
 	{ name: "Python functions get one blank line", lang: "py", input: "def a():\n    pass\ndef b():\n    pass\n", expected: "def a():\n    pass\n\ndef b():\n    pass\n" },
 	{ name: "a comment that swallows the CR keeps the file CRLF", lang: "py", input: "def a():\r\n    pass  # c\r\ndef b():\r\n    pass\r\n", expected: "def a():\r\n    pass  # c\r\n\r\ndef b():\r\n    pass\r\n" },
+	{ name: "Allman braces in PHP move up, } else { joins", lang: "php", input: php("class K\n{\n\tfunction f()\n\t{\n\t\tif ($a)\n\t\t{\n\t\t\tx();\n\t\t}\n\t\telse\n\t\t{\n\t\t\ty();\n\t\t}\n\t\ttry\n\t\t{\n\t\t}\n\t\tcatch (E $e)\n\t\t{\n\t\t}\n\t}\n}"), expected: php("class K {\n\tfunction f() {\n\t\tif ($a) {\n\t\t\tx();\n\t\t} else {\n\t\t\ty();\n\t\t}\n\t\ttry {\n\t\t} catch (E $e) {\n\t\t}\n\t}\n}") },
+	{ name: "a comment before { keeps the brace on its line", lang: "php", input: php("function f() // note\n{\n}"), expected: php("function f() // note\n{\n}") },
+	{ name: "a free-standing block stays", lang: "php", input: php("x();\n{\n\ty();\n}"), expected: php("x();\n{\n\ty();\n}") },
+	{ name: "C# Allman to K&R", lang: "cs", input: "class K\n{\n\tvoid F()\n\t{\n\t\tif (a)\n\t\t{\n\t\t}\n\t\telse\n\t\t{\n\t\t}\n\t}\n}\n", expected: "class K {\n\tvoid F() {\n\t\tif (a) {\n\t\t} else {\n\t\t}\n\t}\n}\n" },
+	{ name: "C do-while closes on one line", lang: "c", input: "void f() {\n\tdo\n\t{\n\t\ti++;\n\t}\n\twhile (i < n);\n}\n", expected: "void f() {\n\tdo {\n\t\ti++;\n\t} while (i < n);\n}\n" },
+	{ name: "never onto a preprocessor line", lang: "cpp", input: "int main()\n#if 1\n{\n}\n#endif\n", expected: "int main()\n#if 1\n{\n}\n#endif\n" },
+	{ name: "JS block after a bare return stays", lang: "js", input: "function f() {\n\treturn\n\t{\n\t}\n}\n", expected: "function f() {\n\treturn\n\t{\n\t}\n}\n" },
 	{ name: "subscripts and array items", lang: "php", input: php("$t[$i - 1] = [$a + 1, $b];"), expected: php("$t[$i-1] = [$a+1, $b];") },
 	{ name: "null coalescing", lang: "php", input: php("$x = $a??$b;"), expected: php("$x = $a ?? $b;") },
 	{ name: "short ternary stays whole", lang: "php", input: php("$x = $a ?: $b;"), expected: php("$x = $a ?: $b;") },

@@ -19,9 +19,9 @@ echo "Area: " . $area . " cm2";                   echo "Area: ".$area." cm2";
 It works on PHP (including PHP inside HTML), C, C++, JavaScript and
 TypeScript (with JSX/TSX), C#, Java, Python and Rust, as a VS Code extension
 and as a command-line tool. It changes whitespace only: around operators, the
-column of `=>` in multi-line PHP arrays and the blank line between functions.
-Braces, indentation and line wrapping stay the job of your usual formatter,
-which the extension runs first.
+column of `=>` in multi-line PHP arrays, the blank line between functions and
+K&R brace placement. Indentation and line wrapping stay the job of your usual
+formatter, which the extension runs first.
 
 ## Why another tool
 
@@ -45,6 +45,7 @@ for-loop header.
 | `? :` | spaced, `?:` stays whole |
 | `=>` | tight in a one-line array; in a multi-line one, lined up in a column one space past the longest key |
 | functions | exactly one blank line between neighbouring definitions (not when a comment sits between them) |
+| braces | `{` on the line of its header, `} else {`, `} catch`, `} while` of a do-while; never after a comment, onto a `#` directive line or for a free-standing block |
 
 The `classic` preset puts a space around every operator, as Prettier does, and
 leaves arrays and blank lines alone. Bit operators, shifts, `instanceof`, `in`,
@@ -60,16 +61,21 @@ editors that use Open VSX can install it from there, and every
 [GitHub release](https://github.com/PantoYT/cool-formatter/releases) has the
 `.vsix` attached.
 
-Then make it the formatter of the languages you want:
+After installing it offers to become the formatter of every language. The
+same is the command **Cool Formatter: Use for all languages (and format on
+save)**, or one line in your settings:
 
 ```json
-"[php]": { "editor.defaultFormatter": "panto.cool-formatter" },
-"[cpp]": { "editor.defaultFormatter": "panto.cool-formatter" },
-"[javascript]": { "editor.defaultFormatter": "panto.cool-formatter" }
+"editor.defaultFormatter": "panto.cool-formatter"
 ```
 
-Language ids: `php`, `c`, `cpp`, `javascript`, `javascriptreact`, `typescript`,
-`typescriptreact`, `csharp`, `java`, `python`, `rust`.
+Languages it has rules for (`php`, `c`, `cpp`, `javascript`,
+`javascriptreact`, `typescript`, `typescriptreact`, `csharp`, `java`,
+`python`, `rust`) get its spacing and braces; every other language (HTML, CSS,
+JSON, Markdown, ...) is passed on to the formatter VS Code has for it. The
+style travels with the extension: K&R braces, semicolons and `case` placement
+come from the preset, so a fresh machine formats the same way without any
+other settings.
 
 When it formats a document, it lays the document out first and then fixes the
 operators, so one Format Document or format-on-save does both:
@@ -78,7 +84,8 @@ operators, so one Format Document or format-on-save does both:
   TypeScript language service, bundled), configured by your
   `javascript.format.*` / `typescript.format.*` settings. It never rewrites
   quotes, and it does not depend on which other formatter is installed;
-  Prettier would turn `'a'` into `"a"`.
+  Prettier would turn `'a'` into `"a"`. The preset fills in semicolons and
+  `case` placement unless you set them yourself.
 - Every other language goes through the formatter extension VS Code offers for
   it: Intelephense, C/C++, C#, Ruff, rust-analyzer and so on.
 
@@ -136,7 +143,7 @@ None differed. Rust and C# rely on the checks above.
 ## Development
 
 ```sh
-npm test               # selftest, 71 cases
+npm test               # selftest, 78 cases
 npm run typecheck
 npm run test:vscode    # extension tests in a throwaway VS Code instance
 ```

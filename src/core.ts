@@ -93,6 +93,7 @@ class Pass {
 	visit(node: Node): void {
 		const lang = this.lang;
 		if (lang.functions && this.style.functionGap === "one") this.functionGaps(node);
+		if (lang.blocks && this.style.braces === "attach") this.braces(node);
 		if (lang.binary.has(node.type)) {
 			for (const op of this.operators(node)) this.space(op, this.binary(op.type, node));
 		} else if (lang.assignment.has(node.type)) {
@@ -110,6 +111,37 @@ class Pass {
 				else this.space(arrow, spacing);
 			}
 		}
+	}
+
+	// K&R braces: a body's { moves up to the line of its header, and else,
+	// catch, finally (and the while of a do-while) move up next to the }.
+	// Only bodies that belong to a header (a named field of their parent):
+	// a free-standing { } block, or JS code after a bare `return`, never moves.
+	braces(node: Node): void {
+		const first = node.child(0);
+		if (first?.type === "{" && this.lang.blocks!.has(node.type) && node.parent && fieldOf(node.parent, node)) {
+			this.pullUp(first, false);
+		}
+		for (const child of node.children) {
+			if (!child || child.isNamed) continue;
+			const word = child.type;
+			if (word === "else" || word === "elseif" || word === "catch" || word === "finally" || (word === "while" && node.type.startsWith("do"))) {
+				this.pullUp(child, true);
+			}
+		}
+	}
+
+	pullUp(token: Node, afterCloser: boolean): void {
+		const prev = previousLeaf(token);
+		if (!prev || prev.type.includes("comment")) return;
+		if (afterCloser && prev.type !== "}") return;
+		const src = this.source;
+		const gap = src.slice(prev.endIndex, token.startIndex);
+		if (!gap.includes("\n") || /\S/.test(gap)) return;
+		// Never onto a preprocessor line (#if, #region): it would join the directive.
+		const lineStart = src.lastIndexOf("\n", prev.endIndex - 1) + 1;
+		if (src.slice(lineStart, prev.endIndex).trimStart().startsWith("#")) return;
+		this.edits.set(prev.endIndex, { start: prev.endIndex, end: token.startIndex, text: " " });
 	}
 
 	// Exactly one blank line between two neighbouring function definitions.
@@ -264,6 +296,15 @@ class Pass {
 		}
 		this.edits.set(start, { start, end, text: want });
 	}
+}
+
+// The token just before this one in the file, comments included.
+function previousLeaf(node: Node): Node | null {
+	let n: Node | null = node;
+	while (n && !n.previousSibling) n = n.parent;
+	let leaf = n?.previousSibling ?? null;
+	while (leaf && leaf.childCount > 0) leaf = leaf.child(leaf.childCount - 1);
+	return leaf;
 }
 
 function fieldOf(parent: Node, child: Node): string | null {

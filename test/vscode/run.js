@@ -36,25 +36,17 @@ if (existsSync(base)) {
 mkdirSync(join(workspace, ".vscode"), { recursive: true });
 mkdirSync(join(workspace, "classic"), { recursive: true });
 writeFileSync(join(workspace, "classic", ".cool-formatter.json"), JSON.stringify({ preset: "classic" }));
-const formatter = { "editor.defaultFormatter": "panto.cool-formatter" };
+// Like a fresh school PC: one line makes Cool Formatter the formatter of
+// everything. No Intelephense brace style, no javascript.format.* and no
+// clang-format style are set, so K&R braces, semicolons and case placement
+// have to come from the preset itself.
 writeFileSync(join(workspace, ".vscode", "settings.json"), JSON.stringify({
-	"[php]": formatter,
-	"[c]": formatter,
-	"[cpp]": formatter,
-	"[javascript]": formatter,
-	"[java]": formatter,
-	// Prettier off for JS, so VS Code's own JS formatter is the base: it keeps quotes as written.
-	"prettier.disableLanguages": ["javascript", "javascriptreact", "typescript", "typescriptreact"],
-	"javascript.format.semicolons": "insert",
-	"javascript.format.indentSwitchCase": false,
+	"editor.defaultFormatter": "panto.cool-formatter",
 	"editor.insertSpaces": false,
 	"editor.tabSize": 4,
 	"editor.detectIndentation": false,
 	"editor.formatOnSave": true,
-	"intelephense.format.braces": "k&r",
 	"intelephense.telemetry.enabled": false,
-	// A layout matching the panto preset: braces attached, tabs, case at switch level.
-	"C_Cpp.clang_format_style": "{ BasedOnStyle: LLVM, UseTab: Always, IndentWidth: 4, TabWidth: 4, BreakBeforeBraces: Attach, ColumnLimit: 0, IndentCaseLabels: false, AllowShortIfStatementsOnASingleLine: Never, AllowShortLoopsOnASingleLine: false, AllowShortFunctionsOnASingleLine: None }",
 }, null, "\t"));
 
 const developmentPaths = [root];
