@@ -1,27 +1,48 @@
-# Cool Formatter™
+<p align="center">
+  <img src="art/icon-256.png" width="128" alt="Cool Formatter icon: three interlinked Möbius strips in pixel art">
+</p>
 
-<img src="art/icon.png" width="96" alt="Three interlinked Möbius strips forming a triangle, in pixel art">
+<h1 align="center">Cool Formatter™</h1>
 
-Operator spacing that follows precedence, so code reads the way it binds.
-Spaces go around the operator that binds loosest and disappear where operands
-belong together:
+<p align="center"><b>Operator spacing that follows precedence, so code reads the way it binds.</b></p>
 
-```php
-// before (Prettier, PSR-12, clang-format)        // after Cool Formatter
-$obw = 2 * $a + 2 * $b;                           $obw = 2*$a + 2*$b;
-$p = ($a + $b) * ($a - $b);                       $p = ($a+$b)*($a-$b);
-if ($x > 0 && $y < 10) {                          if ($x>0 && $y<10) {
-if ($a + $b > 10) {                               if ($a+$b > 10) {
-for ($i = 0; $i < $n; $i++) {                     for ($i=0; $i<$n; $i++) {
-echo "Area: " . $area . " cm2";                   echo "Area: ".$area." cm2";
-```
+<p align="center">
+  <a href="https://marketplace.visualstudio.com/items?itemName=panto.cool-formatter"><img src="https://img.shields.io/visual-studio-marketplace/v/panto.cool-formatter?label=VS%20Code%20Marketplace&color=ff7a62" alt="VS Code Marketplace"></a>
+  <a href="https://open-vsx.org/extension/panto/cool-formatter"><img src="https://img.shields.io/open-vsx/v/panto/cool-formatter?label=Open%20VSX&color=7cc935" alt="Open VSX"></a>
+  <a href="LICENSE"><img src="https://img.shields.io/badge/license-GPL--3.0-2c95e6" alt="GPL-3.0"></a>
+</p>
 
-It works on PHP (including PHP inside HTML), C, C++, JavaScript and
-TypeScript (with JSX/TSX), C#, Java, Python and Rust, as a VS Code extension
-and as a command-line tool. It changes whitespace only: around operators, the
-column of `=>` in multi-line PHP arrays, the blank line between functions and
-K&R brace placement. Indentation and line wrapping stay the job of your usual
-formatter, which the extension runs first.
+<p align="center">
+  <img src="art/readme/demo.gif" width="680" alt="A PHP file in VS Code before and after saving with Cool Formatter">
+</p>
+
+`2 * $a + 2 * $b` says nothing about what binds first. `2*$a + 2*$b` does.
+Cool Formatter puts spaces around the operator that binds loosest and takes
+them away where operands belong together, reading the precedence straight from
+the syntax tree.
+
+<p align="center">
+  <img src="art/readme/diff.png" alt="VS Code diff: the file as Prettier and PSR-12 leave it, and after Cool Formatter">
+</p>
+
+## In one minute
+
+1. Install **Cool Formatter** from the Extensions view (or
+   `code --install-extension panto.cool-formatter`).
+2. Click **Every language** when it asks, or run
+   **Cool Formatter: Use for all languages** from the Command Palette.
+
+That is all. Save a file and it is formatted.
+
+- **PHP** (also inside HTML), **C**, **C++**, **JavaScript** and **TypeScript**
+  (JSX/TSX), **C#**, **Java**, **Python** and **Rust** get its spacing; every
+  other language is passed on to its usual formatter.
+- `for ($i=0; $i<$n; $i++)`, `$x>0 && $y<10`, `($a+$b)*($a-$b)`,
+  `"Total: ".$sum`, `$n+=1`.
+- K&R braces, `} else {`, one blank line between functions and `=>` lined up
+  in multi-line PHP arrays, whatever the other formatter did.
+- Quotes, comments and line breaks are never touched, and a result that would
+  read differently to the compiler is thrown away (see Safety).
 
 ## Why another tool
 
@@ -96,7 +117,9 @@ operators, so one Format Document or format-on-save does both:
 
 Skipped files (see Safety) are reported in the Cool Formatter output channel.
 
-## Command line
+<details>
+<summary><b>Command line</b></summary>
+
 
 Requires Node.js 22.18 or newer (it runs the TypeScript sources directly).
 
@@ -109,7 +132,11 @@ node src/cli.ts tree file.cpp         # print the syntax tree
 node src/cli.ts selftest              # run the built-in cases
 ```
 
-## Configuration file
+</details>
+
+<details>
+<summary><b>Configuration file</b></summary>
+
 
 A `.cool-formatter.json` in the file's folder or any parent picks the preset
 and overrides single options, for the extension and the command line alike:
@@ -122,7 +149,11 @@ Every option of `src/style.ts` can be set; spacing values are `tight`,
 `spaced` or `keep`, plus `align` for `arrowMultiLine`, and `functionGap` is
 `one` or `keep`.
 
-## Safety
+</details>
+
+<details>
+<summary><b>Safety</b></summary>
+
 
 - Only whitespace is rewritten: around an operator never across a line break
   or next to a comment, between functions only when nothing but whitespace
@@ -140,7 +171,11 @@ TypeScript parser's tokens for JS (32), Python's `tokenize` (100) and
 identical `javac` bytecode for the Java files that compile on their own (7).
 None differed. Rust and C# rely on the checks above.
 
-## Development
+</details>
+
+<details>
+<summary><b>Development</b></summary>
+
 
 ```sh
 npm test               # selftest, 78 cases
@@ -178,6 +213,8 @@ compiled to WebAssembly, so nothing native is installed. A new language needs
 an adapter in `src/languages.ts` that names its node types (`tree` shows
 them) and selftest cases. Go is left out on purpose: gofmt already spaces
 by precedence and Go code is expected to be gofmt'ed.
+
+</details>
 
 ## License
 

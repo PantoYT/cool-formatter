@@ -6,3 +6,4 @@ dist/
 .env.*
 art/candidates/
 *.log
+.shots/

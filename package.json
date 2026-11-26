@@ -2,7 +2,7 @@
 	"name": "cool-formatter",
 	"displayName": "Cool Formatter™",
 	"description": "Operator spacing that follows precedence, so code reads the way it binds.",
-	"version": "0.5.0",
+	"version": "0.5.1",
 	"icon": "art/icon.png",
 	"private": true,
 	"publisher": "panto",
@@ -112,5 +112,9 @@
 		"esbuild": "0.28.2",
 		"ovsx": "1.4.0",
 		"typescript": "7.0.2"
+	},
+	"galleryBanner": {
+		"color": "#1d1530",
+		"theme": "dark"
 	}
 }
